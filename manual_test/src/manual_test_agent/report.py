@@ -33,21 +33,22 @@ def _read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _find_run(artifacts: Path, test_id: str) -> Path | None:
-    direct = artifacts / test_id / "final_result.json"
-    if direct.is_file():
-        return direct.parent
+def _find_run(artifacts: Path, test_id: str, *, allow_flattened_root: bool = False) -> Path | None:
     if not artifacts.exists():
         return None
-    candidates: list[Path] = []
+    candidates: set[Path] = set()
     for path in artifacts.rglob("final_result.json"):
         if (
             path.is_file()
             and not path.is_symlink()
-            and (path.parent.name in {test_id, f"manual-test-{test_id}"} or test_id in path.parts)
+            and (
+                path.parent.name in {test_id, f"manual-test-{test_id}"}
+                or test_id in path.parts
+                or (allow_flattened_root and path.parent == artifacts)
+            )
         ):
-            candidates.append(path.parent)
-    return candidates[0] if len(candidates) == 1 else None
+            candidates.add(path.parent)
+    return next(iter(candidates)) if len(candidates) == 1 else None
 
 
 def _generic_result(result: Any, case: TestCase) -> None:
@@ -185,7 +186,11 @@ def aggregate_results(
     _reject_symlink_tree(artifacts_path)
     tests: list[dict[str, Any]] = []
     for case in suite.tests:
-        run = _find_run(artifacts_path, case.id)
+        run = _find_run(
+            artifacts_path,
+            case.id,
+            allow_flattened_root=len(suite.tests) == 1,
+        )
         if run is None:
             tests.append(
                 {
