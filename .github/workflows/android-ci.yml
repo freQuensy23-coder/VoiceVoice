@@ -18,9 +18,9 @@ concurrency:
 
 jobs:
   build:
-    name: Build
+    name: Build and lint
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Check out repository
@@ -39,8 +39,21 @@ jobs:
         with:
           cache-provider: basic
 
-      - name: Build debug APK
-        run: ./gradlew --no-daemon assembleDebug
+      - name: Build debug and release APKs and run lint
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon assembleDebug assembleRelease lintDebug 2>&1 \
+            | tee "$RUNNER_TEMP/gradle-build.log"
+
+      - name: Upload bounded Gradle build log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: gradle-build-log
+          path: ${{ runner.temp }}/gradle-build.log
+          if-no-files-found: error
+          retention-days: 3
 
   unit-tests:
     name: Unit tests
@@ -96,6 +109,18 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      - name: Prepare instrumented-test runner and diagnostics
+        shell: bash
+        run: |
+          mkdir -p instrumented-test-diagnostics
+          cat > instrumented-test-diagnostics/run.sh <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          ./gradlew --no-daemon connectedDebugAndroidTest 2>&1 \
+            | tee "$GITHUB_WORKSPACE/instrumented-test-diagnostics/gradle-integration.log"
+          SCRIPT
+          chmod +x instrumented-test-diagnostics/run.sh
+
       - name: Run instrumented tests
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
@@ -104,4 +129,27 @@ jobs:
           arch: x86_64
           profile: pixel_7
           disable-animations: true
-          script: ./gradlew --no-daemon connectedDebugAndroidTest
+          script: ./instrumented-test-diagnostics/run.sh
+
+      - name: Collect instrumented-test reports
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p instrumented-test-diagnostics
+          if [[ -d app/build/outputs/androidTest-results/connected ]]; then
+            cp -R app/build/outputs/androidTest-results/connected instrumented-test-diagnostics/results
+          fi
+          if [[ -d app/build/reports/androidTests/connected ]]; then
+            cp -R app/build/reports/androidTests/connected instrumented-test-diagnostics/report
+          fi
+          find app/build -maxdepth 6 -type f -print | sort \
+            > instrumented-test-diagnostics/app-build-files.txt || true
+
+      - name: Upload instrumented-test diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: instrumented-test-diagnostics
+          path: instrumented-test-diagnostics
+          if-no-files-found: error
+          retention-days: 3

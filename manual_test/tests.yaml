@@ -1,19 +1,61 @@
 version: 1
 tests:
-  - id: recording-toggle
-    name: Recording state can be started and stopped
-    description: Check the complete visible interaction manually.
+  - id: transcription-insertion-history
+    name: Floating microphone transcribes, copies, inserts, and saves history
+    description: Verify the complete non-translation flow through the production Accessibility overlay, a microphone foreground-service host prepared while VoiceVoice is visible, collection, insertion, clipboard, and history. Debug mode supplies a valid local WAV fixture and deterministic providers so CI does not depend on host microphone routing or network calls.
     preflight:
       - adb shell 'until cmd package list packages >/dev/null 2>&1; do sleep 2; done'
       - adb install -r app-debug.apk
       - adb shell pm clear com.voicevoice.app
-      - adb shell am start -W -n com.voicevoice.app/.MainActivity
+      - adb shell pm grant com.voicevoice.app android.permission.RECORD_AUDIO
+      - adb shell 'pm grant com.voicevoice.app android.permission.POST_NOTIFICATIONS 2>/dev/null || true'
+      - adb shell am start -W -n com.voicevoice.app/.MainActivity --ez manual_test_mode true --ez translation_mode false
+      - adb shell 'i=0; until dumpsys activity services com.voicevoice.app | grep -q VoiceRecordingService; do i=$((i+1)); [ "$i" -ge 20 ] && exit 1; sleep 1; done'
+      - adb shell settings put secure enabled_accessibility_services com.voicevoice.app/com.voicevoice.app.accessibility.VoiceAccessibilityService
+      - adb shell settings put secure accessibility_enabled 1
+      - adb shell sleep 2
+      - adb shell am start -W -n com.voicevoice.app/.ManualTestTargetActivity
     checklist:
-      - Open the application and establish its initial visible state.
-      - Start recording and verify the application visibly entered its recording state.
-      - Stop recording and verify the initial state returned.
-    agent_instruction: Complete every checklist item yourself. Do not skip steps, infer unseen results, or finish before inspecting every required evidence artifact.
+      - Establish that the editable test field is selected, the on-screen state says "Voice state: IDLE" and "Background recorder ready", and the large fixed right-side control is labelled MIC.
+      - Tap the center of that control once and verify both the STOP label and the on-screen text "Voice state: RECORDING".
+      - Capture the recording state, then tap the same control exactly once and verify the WAIT label and "Voice state: PROCESSING".
+      - Wait for processing to finish and verify that both the editable field and clipboard preview contain exactly "Hello from VoiceVoice".
+      - Open VoiceVoice history and verify a transcription entry with that result is marked automatically inserted.
+    agent_instruction: Complete every checklist item yourself. The manual-test overlay is fixed and intentionally large; on the 1080x2400 emulator its center is approximately x=890, y=1340. Tap that center only once per transition. Read MIC, STOP, and WAIT before proceeding. WAIT remains visible long enough to capture and inspect. Do not tap nearby coordinates repeatedly, skip evidence, or infer unseen results.
     evidence:
-      - Capture and inspect a screenshot of the initial state.
-      - Capture and inspect a screenshot after starting recording.
-      - Capture and inspect a screenshot after stopping recording.
+      - Capture and inspect the selected empty field, IDLE ready state text, and MIC control.
+      - Capture and inspect the STOP control and RECORDING state text.
+      - Capture and inspect the WAIT control and PROCESSING state text.
+      - Capture and inspect the inserted text and clipboard preview.
+      - Capture and inspect the matching automatically inserted history entry.
+
+  - id: background-translation-correction-tracking
+    name: Background translation and subsequent Accessibility correction are saved
+    description: Verify translation and correction tracking while VoiceVoice remains in the background and the selected editable field belongs to Android Settings. The microphone foreground-service host is prepared while MainActivity is visible before Settings is opened. Debug mode uses the same deterministic local audio fixture as the first scenario.
+    preflight:
+      - adb shell 'until cmd package list packages >/dev/null 2>&1; do sleep 2; done'
+      - adb install -r app-debug.apk
+      - adb shell pm clear com.voicevoice.app
+      - adb shell pm grant com.voicevoice.app android.permission.RECORD_AUDIO
+      - adb shell 'pm grant com.voicevoice.app android.permission.POST_NOTIFICATIONS 2>/dev/null || true'
+      - adb shell am start -W -n com.voicevoice.app/.MainActivity --ez manual_test_mode true --ez translation_mode true --es target_language Spanish
+      - adb shell 'i=0; until dumpsys activity services com.voicevoice.app | grep -q VoiceRecordingService; do i=$((i+1)); [ "$i" -ge 20 ] && exit 1; sleep 1; done'
+      - adb shell settings put secure enabled_accessibility_services com.voicevoice.app/com.voicevoice.app.accessibility.VoiceAccessibilityService
+      - adb shell settings put secure accessibility_enabled 1
+      - adb shell sleep 2
+      - adb shell am start -W -a android.settings.SETTINGS
+    checklist:
+      - Confirm that Android Settings, not VoiceVoice, is foreground and the large fixed right-side control is labelled MIC.
+      - Open the Settings search field, leave it selected, and verify the MIC control remains visible.
+      - Tap the control center once and capture the red STOP recording state.
+      - Tap the same center exactly once and capture the grey WAIT processing state before it completes.
+      - Verify "Hola desde VoiceVoice" is inserted into the selected Settings search field, then type " corregido" after it and wait for correction tracking to settle.
+      - Return to VoiceVoice, scroll to History, and verify a translation entry plus a correction entry containing "Hola desde VoiceVoice corregido".
+    agent_instruction: Complete every checklist item yourself. VoiceVoice must stay in the background during recording, processing, insertion, and correction. The fixed overlay center is approximately x=890, y=1340 on this emulator. Tap it only once per state transition and confirm MIC, STOP, or WAIT visually before continuing. WAIT remains visible long enough to capture and inspect. Type the correction into the automatically populated field; never paste it or infer history state.
+    evidence:
+      - Capture and inspect Android Settings in foreground with the MIC control.
+      - Capture and inspect the selected Settings search field before recording.
+      - Capture and inspect the red STOP recording state.
+      - Capture and inspect the grey WAIT processing state.
+      - Capture and inspect the translated field after typing the correction.
+      - Capture and inspect the translation and correction history entries in VoiceVoice.

@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">VoiceVoice</string>
+    <string name="accessibility_service_label">VoiceVoice floating microphone</string>
+    <string name="accessibility_description">Shows a floating microphone, reads the active screen for transcription context, inserts results into focused editable fields, and tracks corrections only after automatic insertion.</string>
+    <string name="manual_test_title">VoiceVoice manual field</string>
 </resources>
