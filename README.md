@@ -2,6 +2,7 @@
 
 [![Android CI](https://github.com/freQuensy23-coder/VoiceVoice/actions/workflows/android-ci.yml/badge.svg)](https://github.com/freQuensy23-coder/VoiceVoice/actions/workflows/android-ci.yml)
 [![Manual Test Build](https://github.com/freQuensy23-coder/VoiceVoice/actions/workflows/manual-test-build.yml/badge.svg)](https://github.com/freQuensy23-coder/VoiceVoice/actions/workflows/manual-test-build.yml)
+[![Codex Android Manual Tests](https://github.com/freQuensy23-coder/VoiceVoice/actions/workflows/codex-manual-tests.yml/badge.svg)](https://github.com/freQuensy23-coder/VoiceVoice/actions/workflows/codex-manual-tests.yml)
 
 A modern Android starter app built with Kotlin, Jetpack Compose, Material 3,
 Gradle Kotlin DSL, and a version catalog.

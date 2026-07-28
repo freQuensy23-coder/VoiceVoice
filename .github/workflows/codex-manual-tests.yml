@@ -253,11 +253,11 @@ jobs:
           script: |
             manual-test preflight --suite "$RUNNER_TEMP/candidate/manual-test-suite/tests.yaml" --test-id "$TEST_ID" --cwd "$RUNNER_TEMP/candidate/manual-test-apk"
             pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
-            test "$(jq -r '.state' <<<"$pr")" = open
-            test "$(jq -r '.merged' <<<"$pr")" = false
-            test "$(jq -r '.head.repo.full_name' <<<"$pr")" = "$GITHUB_REPOSITORY"
-            test "$(jq -r '.head.sha' <<<"$pr")" = "$AUTHORIZED_SHA"
-            test "$(jq -r '.base.ref' <<<"$pr")" = "$DEFAULT_BRANCH"
+            test "$(printf '%s' "$pr" | jq -r '.state')" = open
+            test "$(printf '%s' "$pr" | jq -r '.merged')" = false
+            test "$(printf '%s' "$pr" | jq -r '.head.repo.full_name')" = "$GITHUB_REPOSITORY"
+            test "$(printf '%s' "$pr" | jq -r '.head.sha')" = "$AUTHORIZED_SHA"
+            test "$(printf '%s' "$pr" | jq -r '.base.ref')" = "$DEFAULT_BRANCH"
             manual-test decrypt-auth --input "$RUNNER_TEMP/auth/auth-state.fernet" --output "$RUNNER_TEMP/auth/auth.json"
             manual-test run --suite "$RUNNER_TEMP/candidate/manual-test-suite/tests.yaml" --test-id "$TEST_ID" --run-dir "reports/$TEST_ID" --auth-file "$RUNNER_TEMP/auth/auth.json"
       - name: Persist encrypted Codex auth state
