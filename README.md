@@ -12,8 +12,8 @@ The previous starter screen and local recording toggle mock have been removed.
 
 1. Enable the VoiceVoice Accessibility Service and grant microphone permission.
 2. A floating `Start` control is shown over applications.
-3. Tap `Start`, speak, then tap `Stop`.
-4. `DataCollector` extracts an LLM context string and a vocabulary list from the active accessibility tree.
+3. Tap `Start`, speak, then tap `Stop`. A transparent, non-focusable recording gate gives the microphone foreground service the visible while-in-use state required by modern Android versions without taking input focus from the selected field.
+4. `DataCollector` extracts an LLM context string and a vocabulary list from the active application's accessibility tree.
 5. `VoiceProvider` transcribes the WAV recording.
 6. `LlmProvider` corrects the transcript using the context string.
 7. VoiceVoice copies the final text to the clipboard, inserts it into the focused editable field when enabled, and writes history.
@@ -31,7 +31,7 @@ The production implementation currently includes OpenRouter providers:
 
 Models are editable in the application. The OpenRouter key is entered at runtime and encrypted with an Android Keystore-backed AES-GCM key. It is never committed, logged, or compiled into the APK.
 
-Local-provider interfaces are available. `ExplicitLocalModelManager` performs an HTTPS download only after an explicit `requestDownload` call, verifies SHA-256, then records the installed model ID. No local model is bundled or downloaded during startup.
+Local-provider interfaces are available. `ExplicitLocalModelManager` downloads only after an explicit `requestDownload` call, keeps redirects on HTTPS, rejects unsafe paths, verifies SHA-256, and then records the installed model ID. No local model is bundled or downloaded during startup.
 
 ## Build
 
@@ -74,6 +74,7 @@ The credentialed Codex workflow remains restricted to trusted owner-authored pul
 ## Privacy behavior
 
 - Password accessibility nodes are excluded from collected context.
+- Accessibility overlays, keyboards, and unrelated system windows are excluded from the active application snapshot.
 - Context is bounded and sent only for the active transcription or translation request; raw context is not stored in history.
 - History is stored locally in SQLite and can be cleared from the app.
 - API keys are encrypted at rest through Android Keystore.
