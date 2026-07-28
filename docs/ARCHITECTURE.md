@@ -4,7 +4,9 @@
 
 `VoiceVoiceAccessibilityService` owns the accessibility overlay, active-screen capture, focused-field insertion, and correction event handling.
 
-`RecordingForegroundService` owns microphone capture. Production recording uses 16 kHz, mono, PCM-16 `AudioRecord` and writes a WAV file. The service declares the microphone foreground-service type and is started only from the user's floating-control action.
+`RecordingGateActivity` is a transparent, non-touchable, non-focusable activity opened directly by the user's floating-control tap. It starts the microphone foreground service while VoiceVoice has the visible while-in-use state required by modern Android versions, stays alive for the recording lifetime, and closes before context collection. The external editable field keeps input focus.
+
+`RecordingForegroundService` owns microphone capture. Production recording uses 16 kHz, mono, PCM-16 `AudioRecord` and writes a WAV file. The service declares the microphone foreground-service type. Deterministic recording is compile-time restricted to debug builds.
 
 `VoicePipeline` orchestrates collection, transcription, post-processing, clipboard delivery, optional insertion, and history without knowing provider-specific request parameters.
 
@@ -25,7 +27,9 @@ data class DataCollectionResult(
 
 The return object contains exactly two downstream values. Tree acquisition is outside the collector contract.
 
-`GeneralDataCollector` traverses the available snapshot, removes password-node values, bounds context size, and extracts handles, names, identifiers, variables, and other likely vocabulary terms.
+`AccessibilitySnapshotFactory` reads application windows matching the active package. Accessibility overlays, the keyboard, and unrelated system windows are excluded before tree copying. Password-node text and descriptions are removed.
+
+`GeneralDataCollector` traverses the available snapshot, bounds context size, and extracts handles, names, identifiers, variables, and other likely vocabulary terms.
 
 `TelegramDataCollector` and `WhatsAppDataCollector` produce conversation-oriented context. `DataCollectorRegistry` selects them by package name and uses the general collector for every other application.
 
@@ -64,10 +68,12 @@ No CI secret is copied into an Android build. Runtime users enter their own key 
 
 ```text
 Accessibility floating Start
+  -> transparent RecordingGateActivity reaches visible state
   -> RecordingForegroundService starts AudioRecord
 Accessibility floating Stop
+  -> recording gate closes
   -> WAV finalized
-  -> DataCollectorRegistry selects collector
+  -> DataCollectorRegistry selects collector for the active application
   -> DataCollectionResult(contextForLlm, audioModelTerms)
   -> VoiceProvider(recordedAudio, audioModelTerms, Settings)
   -> LlmProvider.postProcess(transcription, contextForLlm)
@@ -102,10 +108,10 @@ Clipboard delivery does not create a session. Therefore text manually pasted fro
 
 ## Local models
 
-Local providers can be added behind the same provider interfaces. `ExplicitLocalModelManager` has no startup side effects. A caller must explicitly request a descriptor download; the manager requires HTTPS, validates SHA-256, atomically installs the file, and then records its ID in settings.
+Local providers can be added behind the same provider interfaces. `ExplicitLocalModelManager` has no startup side effects. A caller must explicitly request a descriptor download. The manager requires HTTPS across redirects, rejects unsafe IDs and paths, checks free storage, validates SHA-256, atomically installs the file in the private model directory, and then records its ID in settings.
 
 ## Agent test mode
 
 `ManualTestHostActivity` exists only in the debug source set. It selects deterministic implementations without network access, provides an editable target and context terms, and exposes user-driven correction controls. The production manifest does not contain this activity.
 
-The existing isolated Codex harness installs the debug APK, enables the Accessibility Service through ADB, interacts with the same overlay/pipeline/insertion/history code, and captures screenshot/XML evidence for every verdict.
+The existing isolated Codex harness installs the debug APK, enables the Accessibility Service through ADB, interacts with the same recording gate, overlay, pipeline, insertion, history, and correction code, and captures screenshot/XML evidence for every verdict.
