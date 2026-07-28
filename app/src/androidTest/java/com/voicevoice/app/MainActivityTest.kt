@@ -14,9 +14,10 @@ class MainActivityTest {
     val composeTestRule = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun appTitle_isDisplayed() {
-        composeTestRule
-            .onNodeWithText("VoiceVoice")
-            .assertIsDisplayed()
+    fun realApplicationSetupAndHistory_areDisplayed() {
+        composeTestRule.onNodeWithText("VoiceVoice").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Setup").assertIsDisplayed()
+        composeTestRule.onNodeWithText("History").assertExists()
+        composeTestRule.onNodeWithText("Start recording").assertDoesNotExist()
     }
 }

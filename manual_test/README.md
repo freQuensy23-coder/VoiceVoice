@@ -25,10 +25,15 @@ A real run also needs an Android SDK, `adb`, a running emulator, and the exact C
 
 ```sh
 npm install --global '@openai/codex@0.144.6'
-manual-test preflight --suite manual_test/tests.yaml --test-id recording-toggle --cwd "$PWD"
-manual-test run --suite manual_test/tests.yaml --test-id recording-toggle \
-  --run-dir manual_test/reports/recording-toggle --auth-file /secure/codex/auth.json
+manual-test preflight --suite manual_test/tests.yaml \
+  --test-id transcription-insertion-history --cwd "$PWD"
+manual-test run --suite manual_test/tests.yaml \
+  --test-id transcription-insertion-history \
+  --run-dir manual_test/reports/transcription-insertion-history \
+  --auth-file /secure/codex/auth.json
 ```
+
+The checked-in suite covers the complete in-app insertion flow and a second flow where Android Settings stays in the foreground while VoiceVoice records, translates, inserts, and tracks a user correction in the background.
 
 ## Encrypted persistent OAuth state
 
@@ -37,7 +42,7 @@ manual-test run --suite manual_test/tests.yaml --test-id recording-toggle \
 ```sh
 CODEX_AUTH_STATE_KEY=... manual-test export-auth --input /secure/codex/auth.json --output auth-state.fernet
 CODEX_AUTH_STATE_KEY=... manual-test decrypt-auth --input auth-state.fernet --output auth.json
-CODEX_AUTH_STATE_KEY=... manual-test persist-auth --run-dir manual_test/reports/recording-toggle --output rotated.fernet
+CODEX_AUTH_STATE_KEY=... manual-test persist-auth --run-dir manual_test/reports/transcription-insertion-history --output rotated.fernet
 ```
 
 CI stores ciphertext only on the `codex-auth-state` branch. Credentialed runs are globally serialized and the matrix uses `max-parallel: 1`. ADB preflight happens before decryption. The rotated `CODEX_HOME/auth.json` is always re-encrypted and pushed; plaintext is mode 0600, temporary, excluded from artifacts, and never logged.
