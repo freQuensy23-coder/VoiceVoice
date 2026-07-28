@@ -35,6 +35,7 @@ import com.voicevoice.app.VoiceVoiceApplication
 import com.voicevoice.app.model.HistoryEntry
 import com.voicevoice.app.model.HistoryType
 import com.voicevoice.app.ui.theme.VoiceVoiceTheme
+import kotlinx.coroutines.delay
 
 class ManualTestHostActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,6 +93,7 @@ private fun ManualTestHost(
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
+        delay(350)
         keyboardController?.hide()
     }
 

@@ -261,7 +261,9 @@ private class DeterministicVoiceProvider : VoiceProvider {
         ) {
             throw VoiceVoiceException("The debug recorder did not produce a valid WAV file")
         }
-        delay(1_200)
+        // Keep the debug-only processing state observable across one autonomous
+        // manual-test turn. Production providers use their real network/model latency.
+        delay(20_000)
         val hasScreenVocabulary = audioModelTerms.any { it.equals("Alexey", ignoreCase = true) } &&
             audioModelTerms.any { it.equals("VoiceVoice", ignoreCase = true) }
         return if (hasScreenVocabulary) {

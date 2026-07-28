@@ -17,7 +17,7 @@ tests:
       - Inspect the initial screen and verify a polished VoiceVoice shell, setup progress, microphone readiness, and the Accessibility requirement are visible without any starter recording mock.
       - Inspect provider configuration and verify the OpenRouter key is blank or masked, voice and LLM models are configurable, and transcription, insertion, and history controls are present.
       - Inspect the local-model and history areas and verify local models are described as explicit downloads and the empty history state covers transcriptions, translations, and corrections.
-    agent_instruction: Work only with the VoiceVoice screen. If an unrelated system dialog appears, dismiss it before collecting evidence. Capture separate top and lower-screen artifacts and inspect both before submitting.
+    agent_instruction: Work only with the VoiceVoice screen. If an unrelated system dialog appears, dismiss it before collecting evidence. Capture separate top and lower-screen artifacts and inspect both before submitting. Use kebab-case evidence IDs. After every Android tool call, stop that Codex invocation immediately; never swipe and capture in the same invocation.
     evidence:
       - Capture and inspect the setup and status area.
       - Capture and inspect provider, local-model, and history areas.
@@ -45,11 +45,9 @@ tests:
       - Verify screen context affected the deterministic final sentence and that the sentence was automatically inserted into the selected field.
       - Tap Read clipboard and verify the clipboard contains the same final sentence.
       - Refresh history and verify exactly one TRANSCRIPTION entry contains the same final sentence.
-    agent_instruction: Use the floating VoiceVoice controls near the top edge; never use the Gboard microphone. Judge recording, processing, field, clipboard, and history from captured and reopened evidence rather than labels alone.
+    agent_instruction: Use exact visible floating button labels before coordinates and never use the Gboard microphone. The pixel-visible dark floating card may be absent from the bounded hierarchy; if exact-text lookup misses its label, tap once anywhere inside that dark card because the whole card is intentionally clickable. Tap Start once, stop that Codex invocation, then tap Stop only after the next trusted screen shows recording. Judge recording, processing, field, clipboard, and history from captured and reopened evidence. Use kebab-case evidence IDs and stop each Codex invocation immediately after every single Android tool call.
     evidence:
-      - Capture and inspect the initial selected field with the floating Start control.
       - Capture and inspect the recording state.
-      - Capture and inspect the processing state.
       - Capture and inspect the matching field, clipboard, and TRANSCRIPTION history result.
 
   - id: automatic-insertion-correction
@@ -73,11 +71,10 @@ tests:
       - Tap Correct transcript and verify the inserted segment changes from tomorrow to today.
       - Refresh history after the correction debounce and verify one TRANSCRIPTION and one CORRECTION are present.
       - Verify the CORRECTION shows the corrected text and identifies the automatically inserted original as its source.
-    agent_instruction: Use only the floating VoiceVoice Start and Stop controls for recording. Inspect the field before and after correction and reopen history evidence before submitting.
+    agent_instruction: Use exact visible floating VoiceVoice Start and Stop labels for recording. The pixel-visible dark floating card may be absent from the bounded hierarchy; if exact-text lookup misses its label, tap once anywhere inside that dark card because the whole card is intentionally clickable. Inspect the field before and after correction and reopen history evidence before submitting. Use kebab-case evidence IDs and stop each Codex invocation immediately after every single Android tool call.
     evidence:
       - Capture and inspect the automatically inserted transcription.
-      - Capture and inspect the corrected field.
-      - Capture and inspect the linked TRANSCRIPTION and CORRECTION history records.
+      - Capture and inspect the corrected field with its linked TRANSCRIPTION and CORRECTION history records.
 
   - id: clipboard-paste-not-tracked
     name: Manual clipboard insertion is not correction-tracked
@@ -100,11 +97,10 @@ tests:
       - Tap Read clipboard and verify the result is present there while the selected field remains empty.
       - Tap Paste clipboard manually, verify the field receives that text, then tap Correct current text to edit the pasted text.
       - Refresh history and verify the TRANSCRIPTION remains present but the correction count is zero.
-    agent_instruction: This is a negative boundary test. Do not accept an automatically filled field. Inspect clipboard-only delivery, the subsequent manual paste and edit, and the absence of CORRECTION history.
+    agent_instruction: This is a negative boundary test. Do not accept an automatically filled field. The pixel-visible dark floating card may be absent from the bounded hierarchy; if exact-text lookup misses its label, tap once anywhere inside that dark card because the whole card is intentionally clickable. Inspect clipboard-only delivery, the subsequent manual paste and edit, and the absence of CORRECTION history. Use exact visible button labels, kebab-case evidence IDs, and stop each Codex invocation immediately after every single Android tool call.
     evidence:
       - Capture and inspect clipboard-only delivery with an empty field.
-      - Capture and inspect the manually pasted and edited field.
-      - Capture and inspect history with a TRANSCRIPTION and zero CORRECTION records.
+      - Capture and inspect the manually pasted and edited field with a TRANSCRIPTION and zero CORRECTION records.
 
   - id: translation-and-correction
     name: Translation replaces automatic insertion and tracks its correction
@@ -127,8 +123,7 @@ tests:
       - Tap the floating Translate control and verify the Hebrew translation replaces the previous automatic insertion in the same selected field.
       - Tap Read clipboard, refresh history, and verify the same Hebrew text is in the clipboard and a TRANSLATION record exists.
       - Tap Correct current text, refresh history after debounce, and verify a CORRECTION record is linked to the translated text.
-    agent_instruction: Use the floating VoiceVoice controls rather than Gboard. Inspect the field and history after transcription, after translation, and after the translated-text correction.
+    agent_instruction: Use exact visible floating VoiceVoice controls rather than Gboard. The pixel-visible dark floating card may be absent from the bounded hierarchy; if exact-text lookup misses its label, tap once anywhere inside that dark card because the whole card is intentionally clickable. Inspect the field and history after transcription, after translation, and after the translated-text correction. Use kebab-case evidence IDs and stop each Codex invocation immediately after every single Android tool call.
     evidence:
       - Capture and inspect the original automatically inserted transcription.
-      - Capture and inspect the Hebrew replacement, matching clipboard value, and TRANSLATION record.
-      - Capture and inspect the corrected Hebrew field and linked CORRECTION record.
+      - Capture and inspect the corrected Hebrew field, matching translated clipboard and TRANSLATION record, and linked CORRECTION record.

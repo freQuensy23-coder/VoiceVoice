@@ -130,6 +130,7 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
             background = roundedBackground(Color.argb(245, 24, 25, 34), 22f * density)
             elevation = 12f * density
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+            setOnClickListener { onMicrophoneClick() }
         }
         val mic = Button(this).apply {
             text = getString(R.string.overlay_start)
