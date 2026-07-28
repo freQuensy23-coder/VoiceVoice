@@ -17,11 +17,15 @@ class MainActivityTest {
 
     @Test
     fun productionScreenShowsSetupProvidersAndHistory() {
-        composeTestRule.onNodeWithText("VoiceVoice").assertIsDisplayed()
+        composeTestRule.onNodeWithText("VOICEVOICE").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Speak anywhere.\nKeep your context.").assertIsDisplayed()
         composeTestRule.onNodeWithText("Setup").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("voicevoice-list").performScrollToIndex(1)
+        composeTestRule.onNodeWithTag("voicevoice-list").performScrollToIndex(2)
         composeTestRule.onNodeWithText("Providers and behavior").assertIsDisplayed()
         composeTestRule.onNodeWithTag("voicevoice-list").performScrollToIndex(3)
+        composeTestRule.onNodeWithText("Local models").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("voicevoice-list").performScrollToIndex(4)
         composeTestRule.onNodeWithText("History").assertIsDisplayed()
+        composeTestRule.onNodeWithText("No activity yet").assertIsDisplayed()
     }
 }

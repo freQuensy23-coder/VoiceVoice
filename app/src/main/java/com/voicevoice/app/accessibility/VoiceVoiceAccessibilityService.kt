@@ -8,6 +8,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.ColorStateList
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.PixelFormat
@@ -126,13 +127,17 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(padding, padding, padding, padding)
-            background = roundedBackground(Color.argb(235, 35, 35, 42), 18f * density)
+            background = roundedBackground(Color.argb(245, 24, 25, 34), 22f * density)
             elevation = 12f * density
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
         }
         val mic = Button(this).apply {
             text = getString(R.string.overlay_start)
             contentDescription = getString(R.string.overlay_microphone_description)
             isAllCaps = false
+            setTextColor(Color.WHITE)
+            textSize = 15f
+            backgroundTintList = ColorStateList.valueOf(Color.rgb(113, 80, 255))
             setOnClickListener { onMicrophoneClick() }
         }
         val status = TextView(this).apply {
@@ -146,6 +151,8 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
             text = getString(R.string.translate)
             contentDescription = getString(R.string.translate_last_result)
             isAllCaps = false
+            setTextColor(Color.rgb(35, 28, 64))
+            backgroundTintList = ColorStateList.valueOf(Color.rgb(226, 219, 255))
             visibility = View.GONE
             setOnClickListener { translateLastResult() }
         }

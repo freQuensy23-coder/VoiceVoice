@@ -8,7 +8,7 @@ import com.voicevoice.app.model.HistoryType
 import com.voicevoice.app.model.PipelineResult
 import com.voicevoice.app.model.RecordedAudio
 import com.voicevoice.app.model.VoiceVoiceException
-import com.voicevoice.app.provider.ProviderFactory
+import com.voicevoice.app.provider.ProviderResolver
 
 interface AccessibilityGateway {
     fun collectContext(): DataCollectionResult
@@ -21,7 +21,7 @@ interface AccessibilityGateway {
 class VoicePipeline(
     private val settingsRepository: SettingsRepository,
     private val historyRepository: HistoryRepository,
-    private val providerFactory: ProviderFactory,
+    private val providerFactory: ProviderResolver,
 ) {
     suspend fun transcribe(
         audio: RecordedAudio,

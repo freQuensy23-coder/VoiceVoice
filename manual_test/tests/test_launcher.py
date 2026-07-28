@@ -283,6 +283,55 @@ def test_launch_records_transcript_and_uses_sanitized_isolated_environment(
     assert calls == 2
 
 
+def test_launch_tolerates_bounded_sequential_mcp_actions_in_one_invocation(
+    tmp_path: Path,
+) -> None:
+    calls = 0
+    png = bytes.fromhex(
+        "89504e470d0a1a0a0000000d4948445200000001000000010804000000b51c0c020000000b4944415478da6364f80f00010501012718e3660000000049454e44ae426082"
+    )
+
+    def run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal calls
+        calls += 1
+        state = RunState(tmp_path / "run", 2, 2)
+        if calls == 1:
+            state.log("observe", {})
+            state.log("tap", {"x": 10, "y": 20})
+            state.write_latest(Snapshot(png=png, hierarchy="<hierarchy/>"))
+        else:
+            result = {
+                "schema_version": 1,
+                "verdict": "pass",
+                "summary": "Bounded actions completed.",
+                "checklist": [
+                    {"index": 1, "status": "pass", "observation": "First."},
+                    {"index": 2, "status": "pass", "observation": "Second."},
+                ],
+                "evidence_ids": ["initial", "result"],
+                "submitted_at": "2026-01-01T00:00:00+00:00",
+            }
+            (tmp_path / "run/final_result.json").write_text(json.dumps(result))
+            state.log("capture", {"evidence_id": "initial"})
+            state.log("inspect", {"evidence_id": "initial"})
+            state.log("submit", {"verdict": "pass"})
+        return subprocess.CompletedProcess(
+            args, 0, '{"type":"thread.started","thread_id":"thread-bounded"}\n', ""
+        )
+
+    result = launch_case(
+        CASE,
+        AUTH,
+        tmp_path / "run",
+        codex_bin="/usr/bin/codex",
+        runner=run,
+        base_env={"PATH": os.environ["PATH"]},
+    )
+
+    assert result["verdict"] == "pass"
+    assert calls == 2
+
+
 def test_launch_fails_without_valid_mcp_submission(tmp_path: Path) -> None:
     def run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(args, 0, "plausible prose is not a result", "")

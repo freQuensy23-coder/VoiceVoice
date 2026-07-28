@@ -50,7 +50,63 @@ class CorrectionTrackerTest {
         assertNull(tracker.consumePendingCorrection())
     }
 
+    @Test
+    fun unchangedTextAndClearDoNotProduceCorrections() {
+        val tracker = CorrectionTracker()
+        tracker.begin(receipt(prefix = "", inserted = "text", suffix = ""))
+        tracker.onTextChanged(target, "text")
+        assertNull(tracker.consumePendingCorrection())
+
+        tracker.onTextChanged(target, "edited")
+        tracker.clear()
+        assertFalse(tracker.hasActiveSession())
+        assertNull(tracker.consumePendingCorrection())
+    }
+
+    @Test
+    fun sequentialCorrectionsUsePreviousCorrectionAsSource() {
+        val tracker = CorrectionTracker()
+        tracker.begin(receipt(prefix = "Before ", inserted = "helo", suffix = " after"))
+
+        tracker.onTextChanged(target, "Before hello after")
+        val first = tracker.consumePendingCorrection()
+        tracker.onTextChanged(target, "Before Hello after")
+        val second = tracker.consumePendingCorrection()
+
+        assertEquals("helo", first?.originalText)
+        assertEquals("hello", first?.correctedText)
+        assertEquals("hello", second?.originalText)
+        assertEquals("Hello", second?.correctedText)
+        assertEquals("Before Hello after", second?.fullFieldText)
+    }
+
+    @Test
+    fun targetWithoutViewIdMatchesOnlySameClassAndBounds() {
+        val anonymousTarget = target.copy(viewId = null)
+        val tracker = CorrectionTracker()
+        tracker.begin(receipt(prefix = "", inserted = "text", suffix = "", target = anonymousTarget))
+
+        tracker.onTextChanged(anonymousTarget.copy(bounds = NodeBounds(1, 0, 500, 120)), "wrong")
+        assertNull(tracker.consumePendingCorrection())
+
+        tracker.onTextChanged(anonymousTarget, "right")
+        assertEquals("right", tracker.consumePendingCorrection()?.correctedText)
+    }
+
     private fun receipt(prefix: String, inserted: String, suffix: String) = AutoInsertionReceipt(
+        target = target,
+        prefix = prefix,
+        insertedText = inserted,
+        suffix = suffix,
+        fullTextAfterInsertion = prefix + inserted + suffix,
+    )
+
+    private fun receipt(
+        prefix: String,
+        inserted: String,
+        suffix: String,
+        target: TargetIdentity,
+    ) = AutoInsertionReceipt(
         target = target,
         prefix = prefix,
         insertedText = inserted,

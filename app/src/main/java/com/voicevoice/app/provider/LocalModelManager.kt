@@ -23,6 +23,23 @@ data class LocalModelDescriptor(
     val fileName: String,
 )
 
+internal object LocalModelDescriptorValidator {
+    private val safeId = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+    private val safeFileName = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,159}")
+    private val sha256 = Regex("[a-fA-F0-9]{64}")
+
+    fun validate(descriptor: LocalModelDescriptor) {
+        require(descriptor.id.matches(safeId)) { "Local model ID is invalid" }
+        require(descriptor.fileName.matches(safeFileName)) { "Local model filename is invalid" }
+        require(!descriptor.fileName.contains("..")) { "Local model filename is invalid" }
+        require(descriptor.sha256.matches(sha256)) { "A SHA-256 digest is required" }
+        val url = URL(descriptor.downloadUrl)
+        require(url.protocol.equals("https", ignoreCase = true)) { "Local model URL must use HTTPS" }
+        require(url.userInfo == null) { "Local model URL must not contain credentials" }
+        require(!url.host.isNullOrBlank()) { "Local model URL must have a host" }
+    }
+}
+
 class ExplicitLocalModelManager(
     context: Context,
     private val settingsRepository: SettingsRepository,
@@ -93,13 +110,7 @@ class ExplicitLocalModelManager(
     }
 
     private fun validateDescriptor(descriptor: LocalModelDescriptor) {
-        require(descriptor.id.matches(SAFE_ID)) { "Local model ID is invalid" }
-        require(descriptor.fileName.matches(SAFE_FILE_NAME)) { "Local model filename is invalid" }
-        require(!descriptor.fileName.contains("..")) { "Local model filename is invalid" }
-        require(descriptor.sha256.matches(SHA_256)) { "A SHA-256 digest is required" }
-        val url = URL(descriptor.downloadUrl)
-        require(url.protocol.equals("https", ignoreCase = true)) { "Local model URL must use HTTPS" }
-        require(url.userInfo == null) { "Local model URL must not contain credentials" }
+        LocalModelDescriptorValidator.validate(descriptor)
     }
 
     private fun resolveModelFile(fileName: String): File {
@@ -142,9 +153,6 @@ class ExplicitLocalModelManager(
     }
 
     private companion object {
-        val SAFE_ID = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
-        val SAFE_FILE_NAME = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,159}")
-        val SHA_256 = Regex("[a-fA-F0-9]{64}")
         val REDIRECT_STATUS_CODES = setOf(301, 302, 303, 307, 308)
         const val MAX_REDIRECTS = 5
     }

@@ -37,14 +37,90 @@ class DataCollectorTest {
         assertEquals(listOf("VoiceVoice"), telegram.audioModelTerms)
     }
 
-    private fun node(text: String? = null, password: Boolean = false) = AccessibilityNodeSnapshot(
+    @Test
+    fun whatsappVariantsUseConversationCollector() {
+        val snapshot = AccessibilitySnapshot("com.whatsapp.w4b", listOf(node(text = "OpenRouter")))
+
+        val result = DataCollectorRegistry().resolve(snapshot.packageName).collect(snapshot)
+
+        assertTrue(result.contextForLlm.startsWith("WhatsApp conversation context"))
+        assertEquals(listOf("OpenRouter"), result.audioModelTerms)
+    }
+
+    @Test
+    fun collectorFlattensChildrenDescriptionsAndWhitespaceInStableOrder() {
+        val snapshot = AccessibilitySnapshot(
+            packageName = "example.app",
+            roots = listOf(
+                node(
+                    text = "  First\n  line ",
+                    contentDescription = "avatar for Alexey",
+                    children = listOf(
+                        node(text = "Second line"),
+                        node(text = "First line"),
+                    ),
+                ),
+            ),
+        )
+
+        val result = GeneralDataCollector().collect(snapshot)
+
+        val visible = result.contextForLlm.substringAfter("Visible accessibility content:\n").lines()
+        assertEquals(listOf("First line", "avatar for Alexey", "Second line"), visible)
+        assertTrue(result.audioModelTerms.contains("Alexey"))
+    }
+
+    @Test
+    fun passwordNodesAndTheirChildrenNeverReachEitherOutput() {
+        val snapshot = AccessibilitySnapshot(
+            packageName = "example.app",
+            roots = listOf(
+                node(
+                    text = "password",
+                    contentDescription = "secret VoiceSecret",
+                    password = true,
+                    children = listOf(node(text = "NestedSecret")),
+                ),
+                node(text = "VisibleName"),
+            ),
+        )
+
+        val result = GeneralDataCollector().collect(snapshot)
+
+        assertFalse(result.contextForLlm.contains("VoiceSecret"))
+        assertFalse(result.contextForLlm.contains("NestedSecret"))
+        assertFalse(result.audioModelTerms.contains("VoiceSecret"))
+        assertEquals(listOf("VisibleName"), result.audioModelTerms)
+    }
+
+    @Test
+    fun contextAndAudioTermsAreBounded() {
+        val longLines = (0 until 400).map { index ->
+            node(text = "VisibleName$index " + "x".repeat(900))
+        }
+        val snapshot = AccessibilitySnapshot("example.app", longLines)
+
+        val result = GeneralDataCollector().collect(snapshot)
+
+        assertTrue(result.contextForLlm.length <= 12_000)
+        assertEquals(64, result.audioModelTerms.size)
+        assertEquals("VisibleName0", result.audioModelTerms.first())
+        assertEquals("VisibleName63", result.audioModelTerms.last())
+    }
+
+    private fun node(
+        text: String? = null,
+        contentDescription: String? = null,
+        password: Boolean = false,
+        children: List<AccessibilityNodeSnapshot> = emptyList(),
+    ) = AccessibilityNodeSnapshot(
         text = text,
-        contentDescription = null,
+        contentDescription = contentDescription,
         viewId = null,
         className = "android.widget.TextView",
         editable = false,
         password = password,
         bounds = NodeBounds(0, 0, 100, 40),
-        children = emptyList(),
+        children = children,
     )
 }

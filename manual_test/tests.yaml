@@ -1,95 +1,134 @@
 version: 1
 tests:
   - id: production-setup
-    name: Production setup screen exposes required configuration
-    description: Verify that the starter mock was replaced by the real setup, provider, and history UI.
+    name: Production setup and modern application shell
+    description: Verify that the old mock is gone and the production setup, provider, local-model, privacy, and history surfaces are usable.
     preflight:
       - adb shell 'until cmd package list packages >/dev/null 2>&1; do sleep 2; done'
       - adb install -r app-debug.apk
       - adb shell pm clear com.voicevoice.app
       - adb shell pm grant com.voicevoice.app android.permission.RECORD_AUDIO
       - adb shell pm grant com.voicevoice.app android.permission.POST_NOTIFICATIONS
+      - adb shell settings put global hide_error_dialogs 1
+      - adb shell am force-stop com.google.android.apps.nexuslauncher
       - adb shell am start -W -n com.voicevoice.app/.MainActivity
+      - adb shell sleep 3
     checklist:
-      - Inspect the initial VoiceVoice screen and verify it contains setup status, provider settings, local-model information, and history.
-      - Verify microphone permission is ready and Accessibility is clearly identified as required until enabled.
-      - Verify the OpenRouter key field does not reveal or prefill a secret.
-    agent_instruction: Complete every checklist item yourself. Do not infer hidden state, skip evidence, or submit before inspecting every requested artifact.
+      - Inspect the initial screen and verify a polished VoiceVoice shell, setup progress, microphone readiness, and the Accessibility requirement are visible without any starter recording mock.
+      - Inspect provider configuration and verify the OpenRouter key is blank or masked, voice and LLM models are configurable, and transcription, insertion, and history controls are present.
+      - Inspect the local-model and history areas and verify local models are described as explicit downloads and the empty history state covers transcriptions, translations, and corrections.
+    agent_instruction: Work only with the VoiceVoice screen. If an unrelated system dialog appears, dismiss it before collecting evidence. Capture separate top and lower-screen artifacts and inspect both before submitting.
     evidence:
-      - Capture and inspect the full setup screen.
-      - Capture and inspect the provider settings and empty history sections.
+      - Capture and inspect the setup and status area.
+      - Capture and inspect provider, local-model, and history areas.
 
   - id: accessibility-transcription-flow
-    name: Floating accessibility button completes transcription flow
-    description: Exercise Start, Stop, loading, context collection, post-processing, clipboard delivery, automatic insertion, and history through deterministic debug providers.
+    name: Floating control completes the full transcription flow
+    description: Exercise background Accessibility overlay, recording, loading, context-aware provider processing, clipboard delivery, automatic insertion, and history.
     preflight:
       - adb shell 'until cmd package list packages >/dev/null 2>&1; do sleep 2; done'
       - adb install -r app-debug.apk
       - adb shell pm clear com.voicevoice.app
       - adb shell pm grant com.voicevoice.app android.permission.RECORD_AUDIO
       - adb shell pm grant com.voicevoice.app android.permission.POST_NOTIFICATIONS
+      - adb shell settings put global hide_error_dialogs 1
+      - adb shell am force-stop com.google.android.apps.nexuslauncher
+      - adb shell am start -W -n com.voicevoice.app/.debug.ManualTestHostActivity
+      - adb shell sleep 2
       - adb shell settings put secure enabled_accessibility_services com.voicevoice.app/com.voicevoice.app.accessibility.VoiceVoiceAccessibilityService
       - adb shell settings put secure accessibility_enabled 1
-      - adb shell am start -W -n com.voicevoice.app/.debug.ManualTestHostActivity
-      - adb shell sleep 3
+      - adb shell sleep 4
     checklist:
-      - Verify the manual target is open, its editable field is selected, and the floating VoiceVoice Start button is visible.
-      - Tap Start and verify the floating control visibly enters the recording state.
-      - Tap Stop and verify a loading or transcribing state appears before completion.
-      - Verify the context-aware final sentence is automatically inserted into the selected field.
-      - Refresh history and verify a TRANSCRIPTION entry contains the same final sentence.
-    agent_instruction: Complete the interaction through the floating accessibility UI. Observe every transition and inspect final field and history evidence before submitting.
+      - Verify the note-like manual target is open, its editable field is selected, delivery mode is automatic insertion, and the floating VoiceVoice Start control is visible over it.
+      - Tap the floating VoiceVoice Start control and verify it changes to Stop with a recording status.
+      - Tap Stop and verify the same floating control shows Loading or a transcribing status before completion.
+      - Verify screen context affected the deterministic final sentence and that the sentence was automatically inserted into the selected field.
+      - Tap Read clipboard and verify the clipboard contains the same final sentence.
+      - Refresh history and verify exactly one TRANSCRIPTION entry contains the same final sentence.
+    agent_instruction: Use the floating VoiceVoice controls near the top edge; never use the Gboard microphone. Judge recording, processing, field, clipboard, and history from captured and reopened evidence rather than labels alone.
     evidence:
-      - Capture and inspect the initial target with floating Start control.
+      - Capture and inspect the initial selected field with the floating Start control.
       - Capture and inspect the recording state.
-      - Capture and inspect the processing state when visible.
-      - Capture and inspect the automatically inserted field value and TRANSCRIPTION history entry.
+      - Capture and inspect the processing state.
+      - Capture and inspect the matching field, clipboard, and TRANSCRIPTION history result.
 
   - id: automatic-insertion-correction
-    name: Corrections are logged after automatic insertion
-    description: Verify that a correction to text inserted by VoiceVoice creates a correction history entry.
+    name: A correction is logged after automatic insertion
+    description: Verify that editing text inserted through Accessibility creates a correction record linked to the inserted segment.
     preflight:
       - adb shell 'until cmd package list packages >/dev/null 2>&1; do sleep 2; done'
       - adb install -r app-debug.apk
       - adb shell pm clear com.voicevoice.app
       - adb shell pm grant com.voicevoice.app android.permission.RECORD_AUDIO
       - adb shell pm grant com.voicevoice.app android.permission.POST_NOTIFICATIONS
+      - adb shell settings put global hide_error_dialogs 1
+      - adb shell am force-stop com.google.android.apps.nexuslauncher
+      - adb shell am start -W -n com.voicevoice.app/.debug.ManualTestHostActivity
+      - adb shell sleep 2
       - adb shell settings put secure enabled_accessibility_services com.voicevoice.app/com.voicevoice.app.accessibility.VoiceVoiceAccessibilityService
       - adb shell settings put secure accessibility_enabled 1
-      - adb shell am start -W -n com.voicevoice.app/.debug.ManualTestHostActivity
-      - adb shell sleep 3
+      - adb shell sleep 4
     checklist:
-      - Use the floating Start and Stop controls to insert one transcription into the selected field.
-      - Tap Correct transcript to change tomorrow to today as a user correction.
-      - Allow the correction debounce to complete, then refresh history.
-      - Verify history contains both the original TRANSCRIPTION and a CORRECTION whose source is the automatically inserted text.
-    agent_instruction: Do not report success from labels alone. Inspect the field contents and both history records after the correction debounce.
+      - Use floating Start and Stop to automatically insert one context-aware transcription into the selected field.
+      - Tap Correct transcript and verify the inserted segment changes from tomorrow to today.
+      - Refresh history after the correction debounce and verify one TRANSCRIPTION and one CORRECTION are present.
+      - Verify the CORRECTION shows the corrected text and identifies the automatically inserted original as its source.
+    agent_instruction: Use only the floating VoiceVoice Start and Stop controls for recording. Inspect the field before and after correction and reopen history evidence before submitting.
     evidence:
-      - Capture and inspect the inserted transcription before correction.
-      - Capture and inspect the corrected field value.
-      - Capture and inspect TRANSCRIPTION and CORRECTION history entries together.
+      - Capture and inspect the automatically inserted transcription.
+      - Capture and inspect the corrected field.
+      - Capture and inspect the linked TRANSCRIPTION and CORRECTION history records.
+
+  - id: clipboard-paste-not-tracked
+    name: Manual clipboard insertion is not correction-tracked
+    description: Verify the negative correction boundary when automatic insertion is disabled and the user pastes VoiceVoice clipboard text manually.
+    preflight:
+      - adb shell 'until cmd package list packages >/dev/null 2>&1; do sleep 2; done'
+      - adb install -r app-debug.apk
+      - adb shell pm clear com.voicevoice.app
+      - adb shell pm grant com.voicevoice.app android.permission.RECORD_AUDIO
+      - adb shell pm grant com.voicevoice.app android.permission.POST_NOTIFICATIONS
+      - adb shell settings put global hide_error_dialogs 1
+      - adb shell am force-stop com.google.android.apps.nexuslauncher
+      - adb shell am start -W -n com.voicevoice.app/.debug.ManualTestHostActivity --ez auto_insert false
+      - adb shell sleep 2
+      - adb shell settings put secure enabled_accessibility_services com.voicevoice.app/com.voicevoice.app.accessibility.VoiceVoiceAccessibilityService
+      - adb shell settings put secure accessibility_enabled 1
+      - adb shell sleep 4
+    checklist:
+      - Verify delivery mode is clipboard only, then use floating Start and Stop to produce one transcription.
+      - Tap Read clipboard and verify the result is present there while the selected field remains empty.
+      - Tap Paste clipboard manually, verify the field receives that text, then tap Correct current text to edit the pasted text.
+      - Refresh history and verify the TRANSCRIPTION remains present but the correction count is zero.
+    agent_instruction: This is a negative boundary test. Do not accept an automatically filled field. Inspect clipboard-only delivery, the subsequent manual paste and edit, and the absence of CORRECTION history.
+    evidence:
+      - Capture and inspect clipboard-only delivery with an empty field.
+      - Capture and inspect the manually pasted and edited field.
+      - Capture and inspect history with a TRANSCRIPTION and zero CORRECTION records.
 
   - id: translation-and-correction
-    name: Translation replaces the last automatic insertion and tracks its correction
-    description: Verify translation, automatic insertion, translation history, and subsequent correction tracking.
+    name: Translation replaces automatic insertion and tracks its correction
+    description: Verify translation, clipboard update, field replacement, translation history, and correction tracking for translated text.
     preflight:
       - adb shell 'until cmd package list packages >/dev/null 2>&1; do sleep 2; done'
       - adb install -r app-debug.apk
       - adb shell pm clear com.voicevoice.app
       - adb shell pm grant com.voicevoice.app android.permission.RECORD_AUDIO
       - adb shell pm grant com.voicevoice.app android.permission.POST_NOTIFICATIONS
+      - adb shell settings put global hide_error_dialogs 1
+      - adb shell am force-stop com.google.android.apps.nexuslauncher
+      - adb shell am start -W -n com.voicevoice.app/.debug.ManualTestHostActivity
+      - adb shell sleep 2
       - adb shell settings put secure enabled_accessibility_services com.voicevoice.app/com.voicevoice.app.accessibility.VoiceVoiceAccessibilityService
       - adb shell settings put secure accessibility_enabled 1
-      - adb shell am start -W -n com.voicevoice.app/.debug.ManualTestHostActivity
-      - adb shell sleep 3
+      - adb shell sleep 4
     checklist:
-      - Create one transcription with the floating Start and Stop controls.
-      - Tap the floating Translate control and verify the Hebrew translation replaces the prior automatic insertion in the selected field.
-      - Refresh history and verify a TRANSLATION entry was added.
-      - Tap Correct current text, allow the debounce to complete, and refresh history.
-      - Verify a CORRECTION entry was added for the translated text.
-    agent_instruction: Observe the translation transition and inspect field and history artifacts after each stage. Do not infer replacement or correction from a success message alone.
+      - Create one automatic transcription with the floating Start and Stop controls.
+      - Tap the floating Translate control and verify the Hebrew translation replaces the previous automatic insertion in the same selected field.
+      - Tap Read clipboard, refresh history, and verify the same Hebrew text is in the clipboard and a TRANSLATION record exists.
+      - Tap Correct current text, refresh history after debounce, and verify a CORRECTION record is linked to the translated text.
+    agent_instruction: Use the floating VoiceVoice controls rather than Gboard. Inspect the field and history after transcription, after translation, and after the translated-text correction.
     evidence:
       - Capture and inspect the original automatically inserted transcription.
-      - Capture and inspect the translated Hebrew field value and TRANSLATION history entry.
-      - Capture and inspect the corrected translated field and its CORRECTION history entry.
+      - Capture and inspect the Hebrew replacement, matching clipboard value, and TRANSLATION record.
+      - Capture and inspect the corrected Hebrew field and linked CORRECTION record.

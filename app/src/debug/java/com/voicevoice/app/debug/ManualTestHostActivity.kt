@@ -1,6 +1,8 @@
 package com.voicevoice.app.debug
 
+import android.content.ClipboardManager
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -26,21 +28,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.voicevoice.app.VoiceVoiceApplication
 import com.voicevoice.app.model.HistoryEntry
+import com.voicevoice.app.model.HistoryType
 import com.voicevoice.app.ui.theme.VoiceVoiceTheme
 
 class ManualTestHostActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
         val graph = (application as VoiceVoiceApplication).graph
+        val autoInsert = intent.getBooleanExtra(EXTRA_AUTO_INSERT, true)
         graph.settingsRepository.update {
             it.copy(
                 openRouterApiKey = "debug-only-not-a-real-key",
                 debugDeterministicMode = true,
-                autoInsertEnabled = true,
+                autoInsertEnabled = autoInsert,
                 postProcessEnabled = true,
                 storeHistory = true,
                 targetLanguage = "Hebrew",
@@ -51,9 +57,22 @@ class ManualTestHostActivity : ComponentActivity() {
                 ManualTestHost(
                     historyLoader = { graph.historyRepository.list() },
                     clearHistory = { graph.historyRepository.clear() },
+                    readClipboard = {
+                        getSystemService(ClipboardManager::class.java)
+                            .primaryClip
+                            ?.getItemAt(0)
+                            ?.coerceToText(this)
+                            ?.toString()
+                            .orEmpty()
+                    },
+                    autoInsertEnabled = autoInsert,
                 )
             }
         }
+    }
+
+    companion object {
+        private const val EXTRA_AUTO_INSERT = "auto_insert"
     }
 }
 
@@ -61,13 +80,20 @@ class ManualTestHostActivity : ComponentActivity() {
 private fun ManualTestHost(
     historyLoader: () -> List<HistoryEntry>,
     clearHistory: () -> Unit,
+    readClipboard: () -> String,
+    autoInsertEnabled: Boolean,
 ) {
     var fieldText by remember { mutableStateOf("") }
+    var clipboardText by remember { mutableStateOf("") }
     var refresh by remember { mutableIntStateOf(0) }
     val history = remember(refresh) { historyLoader() }
     val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
 
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+        keyboardController?.hide()
+    }
 
     Column(
         modifier = Modifier
@@ -78,6 +104,10 @@ private fun ManualTestHost(
     ) {
         Text("VoiceVoice manual test target", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text("Alexey is discussing VoiceVoice and OpenRouter in Telegram. The requested deadline is tomorrow.")
+        Text(
+            if (autoInsertEnabled) "Delivery mode: automatic insertion" else "Delivery mode: clipboard only",
+            fontWeight = FontWeight.SemiBold,
+        )
         OutlinedTextField(
             value = fieldText,
             onValueChange = { fieldText = it },
@@ -102,8 +132,28 @@ private fun ManualTestHost(
                 },
             ) { Text("Clear history") }
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = {
+                    clipboardText = readClipboard()
+                },
+            ) { Text("Read clipboard") }
+            Button(
+                onClick = {
+                    clipboardText = readClipboard()
+                    fieldText = clipboardText
+                },
+            ) { Text("Paste clipboard manually") }
+        }
         Text("Field value: $fieldText", fontWeight = FontWeight.SemiBold)
+        Text("Clipboard value: $clipboardText", fontWeight = FontWeight.SemiBold)
         Text("History count: ${history.size}", fontWeight = FontWeight.SemiBold)
+        Text(
+            "History types: transcriptions=${history.count { it.type == HistoryType.TRANSCRIPTION }}, " +
+                "translations=${history.count { it.type == HistoryType.TRANSLATION }}, " +
+                "corrections=${history.count { it.type == HistoryType.CORRECTION }}",
+            fontWeight = FontWeight.SemiBold,
+        )
         history.forEach { entry ->
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(12.dp)) {

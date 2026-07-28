@@ -9,26 +9,36 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80,
+    primary = VoiceVioletDark,
+    secondary = ElectricBlue,
+    tertiary = Mint,
+    error = Color(0xFFFFB4AB),
+    background = NightCanvas,
+    surface = NightSurface,
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40,
+    primary = VoiceViolet,
+    secondary = ElectricBlue,
+    tertiary = Mint,
+    error = WarmCoral,
+    background = Canvas,
+    surface = Color.White,
+    onBackground = Ink,
+    onSurface = Ink,
+    onSurfaceVariant = SoftInk,
 )
 
 @Composable
 fun VoiceVoiceTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current

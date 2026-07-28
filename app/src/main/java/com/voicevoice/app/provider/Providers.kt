@@ -1,13 +1,13 @@
 package com.voicevoice.app.provider
 
 import android.content.Context
-import android.util.Base64
 import com.voicevoice.app.BuildConfig
 import com.voicevoice.app.data.SettingsRepository
 import com.voicevoice.app.model.RecordedAudio
 import com.voicevoice.app.model.Settings
 import com.voicevoice.app.model.VoiceVoiceException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -15,6 +15,7 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Base64
 
 interface VoiceProvider {
     suspend fun transcribe(
@@ -29,11 +30,16 @@ interface LlmProvider {
     suspend fun translate(text: String, targetLanguage: String, context: String): String
 }
 
+interface ProviderResolver {
+    fun voiceProvider(settings: Settings): VoiceProvider
+    fun llmProvider(settings: Settings): LlmProvider
+}
+
 class ProviderFactory(
     private val context: Context,
     private val settingsRepository: SettingsRepository,
-) {
-    fun voiceProvider(settings: Settings): VoiceProvider {
+) : ProviderResolver {
+    override fun voiceProvider(settings: Settings): VoiceProvider {
         if (BuildConfig.DEBUG && settings.debugDeterministicMode) return DeterministicVoiceProvider()
         return when (settings.voiceProviderId) {
             Settings.OPENROUTER_PROVIDER -> OpenRouterVoiceProvider(OpenRouterHttpClient())
@@ -41,7 +47,7 @@ class ProviderFactory(
         }
     }
 
-    fun llmProvider(settings: Settings): LlmProvider {
+    override fun llmProvider(settings: Settings): LlmProvider {
         if (BuildConfig.DEBUG && settings.debugDeterministicMode) return DeterministicLlmProvider()
         return when (settings.llmProviderId) {
             Settings.OPENROUTER_PROVIDER -> OpenRouterLlmProvider(OpenRouterHttpClient(), settings)
@@ -53,7 +59,7 @@ class ProviderFactory(
 }
 
 class OpenRouterVoiceProvider(
-    private val client: OpenRouterHttpClient,
+    private val client: JsonHttpClient,
 ) : VoiceProvider {
     override suspend fun transcribe(
         recordedAudio: RecordedAudio,
@@ -70,7 +76,7 @@ class OpenRouterVoiceProvider(
             .put(
                 "input_audio",
                 JSONObject()
-                    .put("data", Base64.encodeToString(bytes, Base64.NO_WRAP))
+                    .put("data", Base64.getEncoder().encodeToString(bytes))
                     .put("format", recordedAudio.format),
             )
             .put("temperature", 0)
@@ -111,7 +117,7 @@ class OpenRouterVoiceProvider(
 }
 
 class OpenRouterLlmProvider(
-    private val client: OpenRouterHttpClient,
+    private val client: JsonHttpClient,
     private val settings: Settings,
 ) : LlmProvider {
     override suspend fun postProcess(transcribedText: String, context: String): String {
@@ -181,10 +187,18 @@ class OpenRouterLlmProvider(
     }
 }
 
+interface JsonHttpClient {
+    suspend fun postJson(path: String, apiKey: String, body: JSONObject): JSONObject
+}
+
 class OpenRouterHttpClient(
     private val baseUrl: String = "https://openrouter.ai/api/v1",
-) {
-    suspend fun postJson(path: String, apiKey: String, body: JSONObject): JSONObject = withContext(Dispatchers.IO) {
+) : JsonHttpClient {
+    override suspend fun postJson(
+        path: String,
+        apiKey: String,
+        body: JSONObject,
+    ): JSONObject = withContext(Dispatchers.IO) {
         val connection = (URL(baseUrl + path).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 30_000
@@ -227,15 +241,47 @@ private class DeterministicVoiceProvider : VoiceProvider {
         recordedAudio: RecordedAudio,
         audioModelTerms: List<String>,
         settings: Settings,
-    ): String = "send alexey the voicevoice architecture tomorrow"
+    ): String {
+        val header = withContext(Dispatchers.IO) {
+            recordedAudio.file.inputStream().use { input ->
+                val bytes = ByteArray(44)
+                var offset = 0
+                while (offset < bytes.size) {
+                    val count = input.read(bytes, offset, bytes.size - offset)
+                    if (count < 0) break
+                    offset += count
+                }
+                bytes.copyOf(offset)
+            }
+        }
+        if (
+            header.size < 44 ||
+            !header.copyOfRange(0, 4).contentEquals("RIFF".toByteArray(Charsets.US_ASCII)) ||
+            !header.copyOfRange(8, 12).contentEquals("WAVE".toByteArray(Charsets.US_ASCII))
+        ) {
+            throw VoiceVoiceException("The debug recorder did not produce a valid WAV file")
+        }
+        delay(1_200)
+        val hasScreenVocabulary = audioModelTerms.any { it.equals("Alexey", ignoreCase = true) } &&
+            audioModelTerms.any { it.equals("VoiceVoice", ignoreCase = true) }
+        return if (hasScreenVocabulary) {
+            "send alexey the voicevoice architecture tomorrow"
+        } else {
+            "send the architecture tomorrow"
+        }
+    }
 }
 
 private class DeterministicLlmProvider : LlmProvider {
     override suspend fun postProcess(transcribedText: String, context: String): String {
-        return if (context.contains("Alexey", ignoreCase = true) && context.contains("VoiceVoice", ignoreCase = true)) {
+        val hasTranscriptVocabulary = transcribedText.contains("alexey", ignoreCase = true) &&
+            transcribedText.contains("voicevoice", ignoreCase = true)
+        val hasScreenContext = context.contains("Alexey", ignoreCase = true) &&
+            context.contains("VoiceVoice", ignoreCase = true)
+        return if (hasTranscriptVocabulary && hasScreenContext) {
             "Send Alexey the VoiceVoice architecture tomorrow."
         } else {
-            "Send the VoiceVoice architecture tomorrow."
+            "Send the architecture tomorrow."
         }
     }
 

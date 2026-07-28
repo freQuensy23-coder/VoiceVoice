@@ -56,6 +56,7 @@ The existing standalone Codex Android manual-test harness remains the trust boun
 - floating Start/Stop/loading/transcription flow;
 - context-aware automatic insertion and history;
 - correction tracking after automatic insertion;
+- clipboard-only delivery, manual paste, and the required absence of correction tracking;
 - translation replacement and correction tracking.
 
 Debug agent tests use a deterministic recorder and deterministic providers selected only by the debug test host. Production builds always use the configured provider implementations.
