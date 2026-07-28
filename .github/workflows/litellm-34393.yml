@@ -1,0 +1,139 @@
+name: LiteLLM issue 34393
+
+on:
+  pull_request:
+    branches:
+      - automation/litellm-34393-base
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: read
+
+jobs:
+  contribute:
+    if: github.head_ref == 'automation/litellm-34393-trigger'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.HERMES_WORKFLOW || secrets.HERMES_WORKFLOW_TOKEN || secrets.GH_PAT || secrets.GITHUB_PAT || secrets.PAT || secrets.PERSONAL_ACCESS_TOKEN || secrets.CODEX_GITHUB_TOKEN }}
+      BRANCH: fix/vertex-region-cost-tracking-34393
+
+    steps:
+      - name: Validate persisted GitHub token
+        run: |
+          test -n "$GH_TOKEN" || { echo "No persisted GitHub token secret found"; exit 1; }
+          gh auth status
+
+      - name: Fork and clone LiteLLM
+        run: |
+          gh repo fork BerriAI/litellm --clone=false || true
+          gh repo view freQuensy23-coder/litellm >/dev/null
+          gh auth setup-git
+          gh repo clone freQuensy23-coder/litellm litellm
+          cd litellm
+          git remote add upstream https://github.com/BerriAI/litellm.git || true
+          git fetch upstream litellm_internal_staging
+          git checkout -B "$BRANCH" upstream/litellm_internal_staging
+          git config user.name "freQuensy23-coder"
+          git config user.email "64750224+freQuensy23-coder@users.noreply.github.com"
+
+      - name: Apply fix and regression tests
+        working-directory: litellm
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          main_path = Path("litellm/main.py")
+          source = main_path.read_text()
+          old = '''            model_response._hidden_params["region_name"] = kwargs.get(
+                  "aws_region_name", None
+              )  # support region-based pricing for bedrock
+          '''
+          new = '''            model_response._hidden_params["region_name"] = kwargs.get(
+                  "aws_region_name"
+              ) or kwargs.get("vertex_location")
+          '''
+          if old not in source:
+              raise SystemExit("Expected region_name block not found")
+          main_path.write_text(source.replace(old, new, 1))
+
+          test_path = Path(
+              "tests/test_litellm/llms/vertex_ai/test_region_cost_tracking.py"
+          )
+          test_path.parent.mkdir(parents=True, exist_ok=True)
+          test_path.write_text('''from unittest.mock import patch
+
+import litellm
+
+
+def _return_model_response(ctx):
+    return ctx.model_response
+
+
+def test_vertex_location_is_propagated_for_cost_tracking():
+    with patch(
+        "litellm.main._complete_vertex_ai",
+        side_effect=_return_model_response,
+    ):
+        response = litellm.completion(
+            model="vertex_ai/gemini-2.5-flash",
+            messages=[{"role": "user", "content": "hello"}],
+            vertex_project="test-project",
+            vertex_location="europe-west1",
+        )
+
+    assert response._hidden_params["region_name"] == "europe-west1"
+
+
+def test_bedrock_region_name_is_preserved():
+    with patch(
+        "litellm.main._complete_bedrock",
+        side_effect=_return_model_response,
+    ):
+        response = litellm.completion(
+            model="bedrock/anthropic.claude-3-haiku-20240307-v1:0",
+            messages=[{"role": "user", "content": "hello"}],
+            aws_region_name="us-west-2",
+        )
+
+    assert response._hidden_params["region_name"] == "us-west-2"
+''')
+          PY
+
+      - name: Run focused tests
+        working-directory: litellm
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . pytest pytest-asyncio
+          python -m pytest -q \
+            tests/test_litellm/llms/vertex_ai/test_region_cost_tracking.py
+
+      - name: Push branch and open PR
+        working-directory: litellm
+        run: |
+          git add \
+            litellm/main.py \
+            tests/test_litellm/llms/vertex_ai/test_region_cost_tracking.py
+          git commit -m "fix(vertex_ai): propagate region for cost tracking"
+          git push --force origin "$BRANCH"
+
+          existing=$(gh pr list \
+            --repo BerriAI/litellm \
+            --head "freQuensy23-coder:$BRANCH" \
+            --state all \
+            --json url \
+            --jq '.[0].url // empty')
+          if [ -n "$existing" ]; then
+            echo "$existing"
+            exit 0
+          fi
+
+          gh pr create \
+            --repo BerriAI/litellm \
+            --base litellm_internal_staging \
+            --head "freQuensy23-coder:$BRANCH" \
+            --title "fix(vertex_ai): propagate region for cost tracking" \
+            --body $'## Summary\n- propagate `vertex_location` to response `region_name`\n- preserve Bedrock region handling\n- add regression tests\n\nFixes #34393'
