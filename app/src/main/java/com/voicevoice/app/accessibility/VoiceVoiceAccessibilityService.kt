@@ -93,9 +93,15 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
     override fun onServiceConnected() {
         super.onServiceConnected()
         windowManager = getSystemService(WindowManager::class.java)
-        registerRecordingReceiver()
-        showOverlay()
-        renderState(OverlayState.IDLE, getString(R.string.overlay_ready))
+        val plan = accessibilityConnectionPlan(
+            receiverRegistered = receiverRegistered,
+            overlayAttached = overlayRoot != null,
+        )
+        if (plan.registerReceiver) registerRecordingReceiver()
+        if (plan.initializeOverlay) {
+            showOverlay()
+            renderState(OverlayState.IDLE, getString(R.string.overlay_ready))
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -477,3 +483,16 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
         const val CORRECTION_DEBOUNCE_MILLIS = 750L
     }
 }
+
+internal data class AccessibilityConnectionPlan(
+    val registerReceiver: Boolean,
+    val initializeOverlay: Boolean,
+)
+
+internal fun accessibilityConnectionPlan(
+    receiverRegistered: Boolean,
+    overlayAttached: Boolean,
+): AccessibilityConnectionPlan = AccessibilityConnectionPlan(
+    registerReceiver = !receiverRegistered,
+    initializeOverlay = !overlayAttached,
+)
