@@ -25,6 +25,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       HAS_KEY: ${{ secrets.CODEX_AUTH_STATE_KEY != '' }}
       HAS_SEED: ${{ secrets.CODEX_AUTH_SEED != '' }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
     steps:
       - name: Discover and validate the unique current pull request
         id: gate
@@ -39,6 +40,9 @@ jobs:
           pr="$(jq -c '.[0] // {}' <<<"$prs")"
           number="$(jq -r '.number // empty' <<<"$pr")"
           echo "pr_number=$number" >> "$GITHUB_OUTPUT"
+          if [[ "$count" == 1 && -n "$number" ]]; then
+            pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$number")"
+          fi
           trusted=false
           reason="Trigger validation failed."
           if [[ "$(jq -r '.event' <<<"$event")" != "pull_request" ]] ||
@@ -49,7 +53,7 @@ jobs:
           elif [[ "$count" != 1 ]]; then
             reason="Exactly one pull request must contain the triggering commit."
           elif [[ "$(jq -r '.base.repo.full_name' <<<"$pr")" != "$GITHUB_REPOSITORY" ]] ||
-               [[ "$(jq -r '.base.ref' <<<"$pr")" != "$(jq -r '.repository.default_branch' "$GITHUB_EVENT_PATH")" ]] ||
+               [[ "$(jq -r '.base.ref' <<<"$pr")" != "$DEFAULT_BRANCH" ]] ||
                [[ "$(jq -r '.head.repo.full_name' <<<"$pr")" != "$GITHUB_REPOSITORY" ]] ||
                [[ "$(jq -r '.head.sha' <<<"$pr")" != "$sha" ]] ||
                [[ "$(jq -r '.state' <<<"$pr")" != open ]] ||
@@ -126,6 +130,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
           AUTHORIZED_SHA: ${{ needs.authorize.outputs.head_sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
           pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
@@ -133,7 +138,7 @@ jobs:
           test "$(jq -r '.merged' <<<"$pr")" = false
           test "$(jq -r '.head.repo.full_name' <<<"$pr")" = "$GITHUB_REPOSITORY"
           test "$(jq -r '.head.sha' <<<"$pr")" = "$AUTHORIZED_SHA"
-          test "$(jq -r '.base.ref' <<<"$pr")" = "$(jq -r '.repository.default_branch' "$GITHUB_EVENT_PATH")"
+          test "$(jq -r '.base.ref' <<<"$pr")" = "$DEFAULT_BRANCH"
       - name: Restore ciphertext-only standalone Codex auth state
         env:
           GH_TOKEN: ${{ github.token }}
@@ -232,6 +237,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
           AUTHORIZED_SHA: ${{ needs.authorize.outputs.head_sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         with:
           api-level: 35
           target: google_apis
@@ -245,7 +251,7 @@ jobs:
             test "$(jq -r '.merged' <<<"$pr")" = false
             test "$(jq -r '.head.repo.full_name' <<<"$pr")" = "$GITHUB_REPOSITORY"
             test "$(jq -r '.head.sha' <<<"$pr")" = "$AUTHORIZED_SHA"
-            test "$(jq -r '.base.ref' <<<"$pr")" = "$(jq -r '.repository.default_branch' "$GITHUB_EVENT_PATH")"
+            test "$(jq -r '.base.ref' <<<"$pr")" = "$DEFAULT_BRANCH"
             manual-test decrypt-auth --input "$RUNNER_TEMP/auth/auth-state.fernet" --output "$RUNNER_TEMP/auth/auth.json"
             manual-test run --suite "$RUNNER_TEMP/candidate/manual-test-suite/tests.yaml" --test-id "$TEST_ID" --run-dir "reports/$TEST_ID" --auth-file "$RUNNER_TEMP/auth/auth.json"
       - name: Persist encrypted Codex auth state
