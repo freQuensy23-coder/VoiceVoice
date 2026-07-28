@@ -385,6 +385,7 @@ def launch_case(
                 command,
                 env=environment,
                 text=True,
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 check=False,

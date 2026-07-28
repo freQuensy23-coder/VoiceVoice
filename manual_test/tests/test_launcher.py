@@ -224,6 +224,7 @@ def test_launch_records_transcript_and_uses_sanitized_isolated_environment(
         calls += 1
         seen["args"] = args
         seen["env"] = kwargs["env"]
+        seen["stdin"] = kwargs.get("stdin")
         state = RunState(tmp_path / "run", 2, 2)
         if calls == 1:
             state.log("observe", {})
@@ -276,6 +277,7 @@ def test_launch_records_transcript_and_uses_sanitized_isolated_environment(
     assert "CODEX_AUTH_JSON" not in env
     assert env["CODEX_HOME"] == str(tmp_path / "run/codex-home")
     assert env["HOME"] == str(tmp_path / "run/process-home")
+    assert seen["stdin"] is subprocess.DEVNULL
     assert '"thread_id":"thread-1"' in (tmp_path / "run/codex-transcript.jsonl").read_text()
     assert seen["args"].count("exec") == 1  # type: ignore[union-attr]
     assert calls == 2
