@@ -52,6 +52,7 @@ def test_every_agent_matrix_job_gets_fresh_emulator_and_one_codex_session() -> N
     assert "matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}" in text
     assert "reactivecircus/android-emulator-runner" in text.lower()
     assert "name: Enable KVM for the fresh emulator" in text
+    assert "name: Revalidate current pull request before manual OAuth use" in text
     assert "manual-test run" in text
     emulator_script = text[
         text.index("script: |", text.index("android-emulator-runner")) : text.index(
@@ -59,6 +60,7 @@ def test_every_agent_matrix_job_gets_fresh_emulator_and_one_codex_session() -> N
         )
     ]
     assert "<<<" not in emulator_script
+    assert "gh api" not in emulator_script
     assert "--provider openai-codex" not in text  # launcher owns immutable provider selection
     assert "OPENAI_API_KEY" not in text
     assert "CODEX_AUTH_JSON" not in text

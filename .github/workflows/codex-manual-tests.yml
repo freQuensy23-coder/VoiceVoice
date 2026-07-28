@@ -235,15 +235,25 @@ jobs:
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      - name: Revalidate current pull request before manual OAuth use
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
+          AUTHORIZED_SHA: ${{ needs.authorize.outputs.head_sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          test "$(jq -r '.state' <<<"$pr")" = open
+          test "$(jq -r '.merged' <<<"$pr")" = false
+          test "$(jq -r '.head.repo.full_name' <<<"$pr")" = "$GITHUB_REPOSITORY"
+          test "$(jq -r '.head.sha' <<<"$pr")" = "$AUTHORIZED_SHA"
+          test "$(jq -r '.base.ref' <<<"$pr")" = "$DEFAULT_BRANCH"
       - name: Run preflight and one autonomous Codex session on a fresh emulator
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         env:
           TEST_ID: ${{ matrix.test_id }}
           CODEX_AUTH_STATE_KEY: ${{ secrets.CODEX_AUTH_STATE_KEY }}
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
-          AUTHORIZED_SHA: ${{ needs.authorize.outputs.head_sha }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         with:
           api-level: 35
           target: google_apis
@@ -252,12 +262,6 @@ jobs:
           disable-animations: true
           script: |
             manual-test preflight --suite "$RUNNER_TEMP/candidate/manual-test-suite/tests.yaml" --test-id "$TEST_ID" --cwd "$RUNNER_TEMP/candidate/manual-test-apk"
-            pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
-            test "$(printf '%s' "$pr" | jq -r '.state')" = open
-            test "$(printf '%s' "$pr" | jq -r '.merged')" = false
-            test "$(printf '%s' "$pr" | jq -r '.head.repo.full_name')" = "$GITHUB_REPOSITORY"
-            test "$(printf '%s' "$pr" | jq -r '.head.sha')" = "$AUTHORIZED_SHA"
-            test "$(printf '%s' "$pr" | jq -r '.base.ref')" = "$DEFAULT_BRANCH"
             manual-test decrypt-auth --input "$RUNNER_TEMP/auth/auth-state.fernet" --output "$RUNNER_TEMP/auth/auth.json"
             manual-test run --suite "$RUNNER_TEMP/candidate/manual-test-suite/tests.yaml" --test-id "$TEST_ID" --run-dir "reports/$TEST_ID" --auth-file "$RUNNER_TEMP/auth/auth.json"
       - name: Persist encrypted Codex auth state
