@@ -53,6 +53,12 @@ def test_every_agent_matrix_job_gets_fresh_emulator_and_one_codex_session() -> N
     assert "reactivecircus/android-emulator-runner" in text.lower()
     assert "name: Enable KVM for the fresh emulator" in text
     assert "manual-test run" in text
+    emulator_script = text[
+        text.index("script: |", text.index("android-emulator-runner")) : text.index(
+            "name: Persist encrypted Codex auth state"
+        )
+    ]
+    assert "<<<" not in emulator_script
     assert "--provider openai-codex" not in text  # launcher owns immutable provider selection
     assert "OPENAI_API_KEY" not in text
     assert "CODEX_AUTH_JSON" not in text
