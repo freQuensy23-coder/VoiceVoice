@@ -1,6 +1,7 @@
 package com.voicevoice.app
 
 import android.Manifest
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -86,7 +87,7 @@ class MainActivity : ComponentActivity() {
 
     private fun isVoiceVoiceAccessibilityEnabled(): Boolean {
         val manager = getSystemService(AccessibilityManager::class.java)
-        return manager.getEnabledAccessibilityServiceList(AccessibilityManager.FEEDBACK_ALL_MASK)
+        return manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
             .any { info ->
                 info.resolveInfo.serviceInfo.packageName == packageName &&
                     info.resolveInfo.serviceInfo.name == VoiceVoiceAccessibilityService::class.java.name
