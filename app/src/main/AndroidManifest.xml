@@ -27,6 +27,16 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".audio.RecordingGateActivity"
+            android:documentLaunchMode="never"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:finishOnTaskLaunch="true"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:theme="@style/Theme.VoiceVoice.RecordingGate" />
+
         <service
             android:name=".audio.RecordingForegroundService"
             android:exported="false"
