@@ -18,9 +18,9 @@ concurrency:
 
 jobs:
   build:
-    name: Build
+    name: Build and lint
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Check out repository
@@ -39,8 +39,8 @@ jobs:
         with:
           cache-provider: basic
 
-      - name: Build debug APK
-        run: ./gradlew --no-daemon assembleDebug
+      - name: Build debug APK and run Android lint
+        run: ./gradlew --no-daemon assembleDebug lintDebug
 
   unit-tests:
     name: Unit tests
@@ -68,7 +68,7 @@ jobs:
         run: ./gradlew --no-daemon testDebugUnitTest
 
   integration-tests:
-    name: Integration tests
+    name: Instrumented tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
