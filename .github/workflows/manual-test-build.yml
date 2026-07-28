@@ -14,6 +14,7 @@ concurrency:
 jobs:
   harness-tests:
     name: Harness tests
+    if: github.event.pull_request.user.login == 'freQuensy23-coder'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -32,6 +33,7 @@ jobs:
 
   apk:
     name: Build candidate APK
+    if: github.event.pull_request.user.login == 'freQuensy23-coder'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:

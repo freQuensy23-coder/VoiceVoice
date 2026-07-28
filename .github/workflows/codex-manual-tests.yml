@@ -26,6 +26,7 @@ jobs:
       HAS_KEY: ${{ secrets.CODEX_AUTH_STATE_KEY != '' }}
       HAS_SEED: ${{ secrets.CODEX_AUTH_SEED != '' }}
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      ALLOWED_PR_AUTHOR: freQuensy23-coder
     steps:
       - name: Discover and validate the unique current pull request
         id: gate
@@ -59,6 +60,8 @@ jobs:
                [[ "$(jq -r '.state' <<<"$pr")" != open ]] ||
                [[ "$(jq -r '.merged' <<<"$pr")" != false ]]; then
             reason="The pull request repository, base, or current head does not match."
+          elif [[ "$(jq -r '.user.login' <<<"$pr")" != "$ALLOWED_PR_AUTHOR" ]]; then
+            reason="Codex review is restricted to pull requests from $ALLOWED_PR_AUTHOR."
           elif [[ ! "$(jq -r '.author_association' <<<"$pr")" =~ ^(OWNER|MEMBER|COLLABORATOR)$ ]]; then
             reason="The pull-request author is not trusted for credentialed CI."
           elif [[ "$(jq -r '.conclusion' <<<"$event")" != success ]]; then
@@ -131,6 +134,7 @@ jobs:
           PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
           AUTHORIZED_SHA: ${{ needs.authorize.outputs.head_sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          ALLOWED_PR_AUTHOR: freQuensy23-coder
         run: |
           set -euo pipefail
           pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
@@ -139,6 +143,7 @@ jobs:
           test "$(jq -r '.head.repo.full_name' <<<"$pr")" = "$GITHUB_REPOSITORY"
           test "$(jq -r '.head.sha' <<<"$pr")" = "$AUTHORIZED_SHA"
           test "$(jq -r '.base.ref' <<<"$pr")" = "$DEFAULT_BRANCH"
+          test "$(jq -r '.user.login' <<<"$pr")" = "$ALLOWED_PR_AUTHOR"
       - name: Restore ciphertext-only standalone Codex auth state
         env:
           GH_TOKEN: ${{ github.token }}
@@ -241,6 +246,7 @@ jobs:
           PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
           AUTHORIZED_SHA: ${{ needs.authorize.outputs.head_sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          ALLOWED_PR_AUTHOR: freQuensy23-coder
         run: |
           set -euo pipefail
           pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
@@ -249,6 +255,7 @@ jobs:
           test "$(jq -r '.head.repo.full_name' <<<"$pr")" = "$GITHUB_REPOSITORY"
           test "$(jq -r '.head.sha' <<<"$pr")" = "$AUTHORIZED_SHA"
           test "$(jq -r '.base.ref' <<<"$pr")" = "$DEFAULT_BRANCH"
+          test "$(jq -r '.user.login' <<<"$pr")" = "$ALLOWED_PR_AUTHOR"
       - name: Run preflight and one autonomous Codex session on a fresh emulator
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         env:
