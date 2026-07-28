@@ -50,7 +50,7 @@ VoiceVoice supports Android 8.0 (API 26) and newer and targets API 37.
 
 ## Manual agent testing
 
-The existing standalone Codex Android manual-test harness remains the trust boundary. `manual_test/tests.yaml` now covers:
+The existing standalone Codex Android manual-test harness remains the trust boundary. Its complete security and runtime contract is documented in [manual_test/README.md](manual_test/README.md). `manual_test/tests.yaml` now covers:
 
 - production setup and secret-safe provider configuration;
 - floating Start/Stop/loading/transcription flow;
