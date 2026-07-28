@@ -39,7 +39,7 @@ class ExplicitLocalModelManager(
         val target = resolveModelFile(descriptor.fileName)
         val temporary = resolveModelFile(descriptor.fileName + ".download")
         if (temporary.exists() && !temporary.delete()) {
-            throw@withContext VoiceVoiceException("Could not remove an incomplete model download")
+            throw VoiceVoiceException("Could not remove an incomplete model download")
         }
 
         val connection = openHttpsConnection(URL(descriptor.downloadUrl))
