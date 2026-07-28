@@ -1,19 +1,95 @@
 version: 1
 tests:
-  - id: recording-toggle
-    name: Recording state can be started and stopped
-    description: Check the complete visible interaction manually.
+  - id: production-setup
+    name: Production setup screen exposes required configuration
+    description: Verify that the starter mock was replaced by the real setup, provider, and history UI.
     preflight:
       - adb shell 'until cmd package list packages >/dev/null 2>&1; do sleep 2; done'
       - adb install -r app-debug.apk
       - adb shell pm clear com.voicevoice.app
+      - adb shell pm grant com.voicevoice.app android.permission.RECORD_AUDIO
+      - adb shell pm grant com.voicevoice.app android.permission.POST_NOTIFICATIONS
       - adb shell am start -W -n com.voicevoice.app/.MainActivity
     checklist:
-      - Open the application and establish its initial visible state.
-      - Start recording and verify the application visibly entered its recording state.
-      - Stop recording and verify the initial state returned.
-    agent_instruction: Complete every checklist item yourself. Do not skip steps, infer unseen results, or finish before inspecting every required evidence artifact.
+      - Inspect the initial VoiceVoice screen and verify it contains setup status, provider settings, local-model information, and history.
+      - Verify microphone permission is ready and Accessibility is clearly identified as required until enabled.
+      - Verify the OpenRouter key field does not reveal or prefill a secret.
+    agent_instruction: Complete every checklist item yourself. Do not infer hidden state, skip evidence, or submit before inspecting every requested artifact.
     evidence:
-      - Capture and inspect a screenshot of the initial state.
-      - Capture and inspect a screenshot after starting recording.
-      - Capture and inspect a screenshot after stopping recording.
+      - Capture and inspect the full setup screen.
+      - Capture and inspect the provider settings and empty history sections.
+
+  - id: accessibility-transcription-flow
+    name: Floating accessibility button completes transcription flow
+    description: Exercise Start, Stop, loading, context collection, post-processing, clipboard delivery, automatic insertion, and history through deterministic debug providers.
+    preflight:
+      - adb shell 'until cmd package list packages >/dev/null 2>&1; do sleep 2; done'
+      - adb install -r app-debug.apk
+      - adb shell pm clear com.voicevoice.app
+      - adb shell pm grant com.voicevoice.app android.permission.RECORD_AUDIO
+      - adb shell pm grant com.voicevoice.app android.permission.POST_NOTIFICATIONS
+      - adb shell settings put secure enabled_accessibility_services com.voicevoice.app/com.voicevoice.app.accessibility.VoiceVoiceAccessibilityService
+      - adb shell settings put secure accessibility_enabled 1
+      - adb shell am start -W -n com.voicevoice.app/.debug.ManualTestHostActivity
+      - adb shell sleep 3
+    checklist:
+      - Verify the manual target is open, its editable field is selected, and the floating VoiceVoice Start button is visible.
+      - Tap Start and verify the floating control visibly enters the recording state.
+      - Tap Stop and verify a loading or transcribing state appears before completion.
+      - Verify the context-aware final sentence is automatically inserted into the selected field.
+      - Refresh history and verify a TRANSCRIPTION entry contains the same final sentence.
+    agent_instruction: Complete the interaction through the floating accessibility UI. Observe every transition and inspect final field and history evidence before submitting.
+    evidence:
+      - Capture and inspect the initial target with floating Start control.
+      - Capture and inspect the recording state.
+      - Capture and inspect the processing state when visible.
+      - Capture and inspect the automatically inserted field value and TRANSCRIPTION history entry.
+
+  - id: automatic-insertion-correction
+    name: Corrections are logged after automatic insertion
+    description: Verify that a correction to text inserted by VoiceVoice creates a correction history entry.
+    preflight:
+      - adb shell 'until cmd package list packages >/dev/null 2>&1; do sleep 2; done'
+      - adb install -r app-debug.apk
+      - adb shell pm clear com.voicevoice.app
+      - adb shell pm grant com.voicevoice.app android.permission.RECORD_AUDIO
+      - adb shell pm grant com.voicevoice.app android.permission.POST_NOTIFICATIONS
+      - adb shell settings put secure enabled_accessibility_services com.voicevoice.app/com.voicevoice.app.accessibility.VoiceVoiceAccessibilityService
+      - adb shell settings put secure accessibility_enabled 1
+      - adb shell am start -W -n com.voicevoice.app/.debug.ManualTestHostActivity
+      - adb shell sleep 3
+    checklist:
+      - Use the floating Start and Stop controls to insert one transcription into the selected field.
+      - Tap Correct transcript to change tomorrow to today as a user correction.
+      - Allow the correction debounce to complete, then refresh history.
+      - Verify history contains both the original TRANSCRIPTION and a CORRECTION whose source is the automatically inserted text.
+    agent_instruction: Do not report success from labels alone. Inspect the field contents and both history records after the correction debounce.
+    evidence:
+      - Capture and inspect the inserted transcription before correction.
+      - Capture and inspect the corrected field value.
+      - Capture and inspect TRANSCRIPTION and CORRECTION history entries together.
+
+  - id: translation-and-correction
+    name: Translation replaces the last automatic insertion and tracks its correction
+    description: Verify translation, automatic insertion, translation history, and subsequent correction tracking.
+    preflight:
+      - adb shell 'until cmd package list packages >/dev/null 2>&1; do sleep 2; done'
+      - adb install -r app-debug.apk
+      - adb shell pm clear com.voicevoice.app
+      - adb shell pm grant com.voicevoice.app android.permission.RECORD_AUDIO
+      - adb shell pm grant com.voicevoice.app android.permission.POST_NOTIFICATIONS
+      - adb shell settings put secure enabled_accessibility_services com.voicevoice.app/com.voicevoice.app.accessibility.VoiceVoiceAccessibilityService
+      - adb shell settings put secure accessibility_enabled 1
+      - adb shell am start -W -n com.voicevoice.app/.debug.ManualTestHostActivity
+      - adb shell sleep 3
+    checklist:
+      - Create one transcription with the floating Start and Stop controls.
+      - Tap the floating Translate control and verify the Hebrew translation replaces the prior automatic insertion in the selected field.
+      - Refresh history and verify a TRANSLATION entry was added.
+      - Tap Correct current text, allow the debounce to complete, and refresh history.
+      - Verify a CORRECTION entry was added for the translated text.
+    agent_instruction: Observe the translation transition and inspect field and history artifacts after each stage. Do not infer replacement or correction from a success message alone.
+    evidence:
+      - Capture and inspect the original automatically inserted transcription.
+      - Capture and inspect the translated Hebrew field value and TRANSLATION history entry.
+      - Capture and inspect the corrected translated field and its CORRECTION history entry.
