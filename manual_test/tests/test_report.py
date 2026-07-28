@@ -124,6 +124,38 @@ def test_missing_or_invalid_result_is_reported_as_error_not_pass(
     assert "missing" in report["tests"][0]["summary"]
 
 
+def test_single_downloaded_artifact_may_be_flattened_at_artifact_root(
+    tmp_path: Path,
+) -> None:
+    suite_path = tmp_path / "suite.yaml"
+    suite_path.write_text(
+        """
+version: 1
+tests:
+  - id: first-flow
+    name: First generic flow
+    description: Check it.
+    preflight: []
+    checklist: [Observe first., Observe second.]
+    agent_instruction: Complete it.
+    evidence: [Capture first., Capture second.]
+"""
+    )
+    suite = load_suite(suite_path)
+    write_result(tmp_path, "flattened-artifact", "pass")
+
+    report = aggregate_results(
+        suite,
+        tmp_path / "flattened-artifact",
+        publication=tmp_path / "publication",
+        pr_number=9,
+        head_sha="abc123",
+    )
+
+    assert report["overall"] == "pass"
+    assert report["tests"][0]["verdict"] == "pass"
+
+
 def test_markdown_is_sticky_safe_and_links_evidence_artifact(tmp_path: Path) -> None:
     suite_path = tmp_path / "suite.yaml"
     suite_path.write_text(SUITE)
