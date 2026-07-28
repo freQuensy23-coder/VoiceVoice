@@ -29,6 +29,7 @@ import com.voicevoice.app.MainActivity
 import com.voicevoice.app.R
 import com.voicevoice.app.VoiceVoiceApplication
 import com.voicevoice.app.audio.RecordingForegroundService
+import com.voicevoice.app.audio.RecordingGateActivity
 import com.voicevoice.app.model.AutoInsertionReceipt
 import com.voicevoice.app.model.DataCollectionResult
 import com.voicevoice.app.model.HistoryType
@@ -109,6 +110,8 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
     override fun onDestroy() {
         mainHandler.removeCallbacksAndMessages(null)
         scope.cancel()
+        runCatching { stopService(Intent(this, RecordingForegroundService::class.java)) }
+        closeRecordingGate()
         if (receiverRegistered) runCatching { unregisterReceiver(recordingReceiver) }
         overlayRoot?.let { view -> runCatching { windowManager.removeView(view) } }
         overlayRoot = null
@@ -191,10 +194,12 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
         }
         runCatching {
             renderState(OverlayState.PROCESSING, getString(R.string.overlay_starting))
-            ContextCompat.startForegroundService(
-                this,
-                Intent(this, RecordingForegroundService::class.java)
-                    .setAction(RecordingForegroundService.ACTION_START),
+            startActivity(
+                Intent(this, RecordingGateActivity::class.java).addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_NO_ANIMATION or
+                        Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS,
+                ),
             )
         }.onFailure { error ->
             renderState(OverlayState.ERROR, error.message ?: getString(R.string.error_recording))
@@ -203,9 +208,20 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
 
     private fun stopRecording() {
         renderState(OverlayState.PROCESSING, getString(R.string.overlay_processing))
-        startService(
-            Intent(this, RecordingForegroundService::class.java)
-                .setAction(RecordingForegroundService.ACTION_STOP),
+        runCatching {
+            startService(
+                Intent(this, RecordingForegroundService::class.java)
+                    .setAction(RecordingForegroundService.ACTION_STOP),
+            )
+        }.onFailure { error ->
+            renderState(OverlayState.ERROR, error.message ?: getString(R.string.error_recording))
+        }
+        closeRecordingGate()
+    }
+
+    private fun closeRecordingGate() {
+        sendBroadcast(
+            Intent(RecordingGateActivity.ACTION_CLOSE).setPackage(packageName),
         )
     }
 
