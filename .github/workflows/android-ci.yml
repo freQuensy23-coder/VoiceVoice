@@ -50,7 +50,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: android-build-diagnostics
-          path: ${{ runner.temp }}/android-build.log
+          path: |
+            ${{ runner.temp }}/android-build.log
+            app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt
           if-no-files-found: error
           retention-days: 3
 
@@ -128,7 +130,7 @@ jobs:
           arch: x86_64
           profile: pixel_7
           disable-animations: true
-          script: set -o pipefail; ./gradlew --no-daemon connectedDebugAndroidTest 2>&1 | tee "$RUNNER_TEMP/android-instrumented-tests.log"
+          script: bash -o pipefail -c './gradlew --no-daemon connectedDebugAndroidTest 2>&1 | tee "$RUNNER_TEMP/android-instrumented-tests.log"'
 
       - name: Upload instrumented-test diagnostics
         if: always()
