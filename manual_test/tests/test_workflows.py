@@ -24,6 +24,8 @@ def test_untrusted_pr_workflow_has_no_credentials_or_agent_execution() -> None:
     assert workflow["permissions"] == {"contents": "read"}
     assert "manual_test/tests.yaml" in text
     assert "name: manual-test-suite" in text
+    owner_condition = "github.event.pull_request.user.login == 'freQuensy23-coder'"
+    assert {job.get("if") for job in workflow["jobs"].values()} == {owner_condition}
 
 
 def test_privileged_agent_workflow_runs_only_after_trust_gate_from_base_code() -> None:
@@ -34,6 +36,9 @@ def test_privileged_agent_workflow_runs_only_after_trust_gate_from_base_code() -
     assert "pull_request_target" not in text
     assert "author_association" in text
     assert "head.repo.full_name" in text
+    assert text.count("ALLOWED_PR_AUTHOR: freQuensy23-coder") >= 3
+    assert text.count("'.user.login'") >= 3
+    assert text.count('= "$ALLOWED_PR_AUTHOR"') >= 3
     assert text.count("'.state'") >= 3
     assert text.count("'.merged'") >= 3
     assert "github.event.repository.default_branch" in text
