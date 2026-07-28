@@ -44,7 +44,7 @@ CI stores ciphertext only on the `codex-auth-state` branch. Credentialed runs ar
 
 ## CI trust and evidence
 
-The untrusted PR workflow builds the APK and uploads YAML without credentials. The protected `workflow_run` discovers PRs through `commits/{head_sha}/pulls` and validates the workflow event/path, repository, default base, head repository and SHA, exactly one PR, trusted association, and current head. Stale runs are rejected.
+The untrusted PR workflow builds the APK and uploads YAML without credentials. The protected `workflow_run` discovers PRs through `commits/{head_sha}/pulls` and validates the workflow event/path, repository, default base, head repository and SHA, exactly one PR, trusted association, and current head. Stale runs are rejected. The final verdict is exposed as the `codex-android-manual-tests` commit status.
 
 Untrusted artifacts are downloaded below `runner.temp` and must have exact names, counts, bounds, and APK ZIP/manifest signatures. Every YAML test receives a fresh hardware-accelerated emulator and waits for Android's package service before installation. Missing or invalid YAML, failed prepare/build, missing reports, and stale inputs produce bounded fallback reports and commit status. Aggregated evidence is published on `manual-test-evidence`, embeds validated screenshot/XML bytes at immutable URLs, records the tested SHA, caps the sticky PR comment, and never executes artifact content. All actions use immutable commit pins.
 
