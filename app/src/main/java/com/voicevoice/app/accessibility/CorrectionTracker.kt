@@ -33,7 +33,7 @@ class CorrectionTracker {
 
     fun onTextChanged(target: TargetIdentity, fullText: String) {
         val current = session ?: return
-        if (!sameTarget(current.target, target)) return
+        if (!sameAccessibilityTarget(current.target, target)) return
         if (fullText == current.fullText) return
         current.pendingText = fullText
     }
@@ -65,14 +65,6 @@ class CorrectionTracker {
 
     fun hasActiveSession(): Boolean = session != null
 
-    private fun sameTarget(expected: TargetIdentity, actual: TargetIdentity): Boolean {
-        if (expected.packageName != actual.packageName || expected.windowId != actual.windowId) return false
-        if (!expected.viewId.isNullOrBlank() || !actual.viewId.isNullOrBlank()) {
-            return expected.viewId == actual.viewId
-        }
-        return expected.className == actual.className && expected.bounds == actual.bounds
-    }
-
     private data class Session(
         val target: TargetIdentity,
         val prefix: String,
@@ -81,4 +73,12 @@ class CorrectionTracker {
         var fullText: String,
         var pendingText: String?,
     )
+}
+
+internal fun sameAccessibilityTarget(expected: TargetIdentity, actual: TargetIdentity): Boolean {
+    if (expected.packageName != actual.packageName) return false
+    if (!expected.viewId.isNullOrBlank() || !actual.viewId.isNullOrBlank()) {
+        return expected.viewId == actual.viewId
+    }
+    return expected.className == actual.className && expected.bounds == actual.bounds
 }

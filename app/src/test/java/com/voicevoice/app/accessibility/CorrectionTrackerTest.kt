@@ -51,6 +51,16 @@ class CorrectionTrackerTest {
     }
 
     @Test
+    fun transientWindowIdChangesDoNotBreakTheSameFieldSession() {
+        val tracker = CorrectionTracker()
+        tracker.begin(receipt(prefix = "", inserted = "tomorrow", suffix = ""))
+
+        tracker.onTextChanged(target.copy(windowId = 99), "today")
+
+        assertEquals("today", tracker.consumePendingCorrection()?.correctedText)
+    }
+
+    @Test
     fun unchangedTextAndClearDoNotProduceCorrections() {
         val tracker = CorrectionTracker()
         tracker.begin(receipt(prefix = "", inserted = "text", suffix = ""))
@@ -89,7 +99,7 @@ class CorrectionTrackerTest {
         tracker.onTextChanged(anonymousTarget.copy(bounds = NodeBounds(1, 0, 500, 120)), "wrong")
         assertNull(tracker.consumePendingCorrection())
 
-        tracker.onTextChanged(anonymousTarget, "right")
+        tracker.onTextChanged(anonymousTarget.copy(windowId = 99), "right")
         assertEquals("right", tracker.consumePendingCorrection()?.correctedText)
     }
 

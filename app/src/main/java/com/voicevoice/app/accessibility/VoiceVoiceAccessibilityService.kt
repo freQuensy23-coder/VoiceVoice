@@ -108,8 +108,14 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
         event.packageName?.toString()?.takeIf(String::isNotBlank)?.let { lastObservedPackage = it }
-        if (event.eventType != AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) return
-        val source = event.source ?: return
+        if (!correctionTracker.hasActiveSession()) return
+        val source = when (event.eventType) {
+            AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> event.source
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
+                event.source?.takeIf { it.isEditable } ?: focusedEditableNode()
+            }
+            else -> null
+        } ?: return
         val text = source.text?.toString() ?: return
         correctionTracker.onTextChanged(identityOf(source), text)
         scheduleCorrectionPersistence()
@@ -395,7 +401,7 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
     private fun replaceLastInsertion(node: AccessibilityNodeInfo, replacement: String): AutoInsertionReceipt? {
         val previous = session.lastInsertionReceipt ?: return null
         val target = identityOf(node)
-        if (!sameTarget(previous.target, target)) return null
+        if (!sameAccessibilityTarget(previous.target, target)) return null
         val current = node.text?.toString().orEmpty()
         if (!current.startsWith(previous.prefix) || !current.endsWith(previous.suffix)) return null
         val middleEnd = current.length - previous.suffix.length
@@ -476,12 +482,6 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
             className = node.className?.toString(),
             bounds = NodeBounds(rect.left, rect.top, rect.right, rect.bottom),
         )
-    }
-
-    private fun sameTarget(first: TargetIdentity, second: TargetIdentity): Boolean {
-        if (first.packageName != second.packageName || first.windowId != second.windowId) return false
-        if (!first.viewId.isNullOrBlank() || !second.viewId.isNullOrBlank()) return first.viewId == second.viewId
-        return first.className == second.className && first.bounds == second.bounds
     }
 
     private fun renderState(state: OverlayState, message: String) {
