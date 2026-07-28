@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import com.voicevoice.app.BuildConfig
 import com.voicevoice.app.MainActivity
 import com.voicevoice.app.R
 import com.voicevoice.app.VoiceVoiceApplication
@@ -42,7 +43,7 @@ class RecordingForegroundService : Service() {
         if (active) return
         startAsForeground()
         val graph = (application as VoiceVoiceApplication).graph
-        debugMode = graph.settingsRepository.load().debugDeterministicMode
+        debugMode = BuildConfig.DEBUG && graph.settingsRepository.load().debugDeterministicMode
         runCatching {
             if (!debugMode) {
                 WavAudioRecorder(this).also {
@@ -53,13 +54,18 @@ class RecordingForegroundService : Service() {
             active = true
             sendState(ACTION_RECORDING_STARTED)
         }.onFailure { error ->
+            closeRecordingGate()
             sendError(error.message ?: "Could not start recording")
             stopForegroundAndSelf()
         }
     }
 
     private fun stopRecording() {
-        if (!active || !stopping.compareAndSet(false, true)) return
+        if (!active || !stopping.compareAndSet(false, true)) {
+            closeRecordingGate()
+            return
+        }
+        closeRecordingGate()
         executor.execute {
             runCatching {
                 val output = if (debugMode) {
@@ -85,6 +91,7 @@ class RecordingForegroundService : Service() {
     }
 
     private fun cancelRecording(message: String) {
+        closeRecordingGate()
         recorder?.cancel()
         recorder = null
         active = false
@@ -148,12 +155,17 @@ class RecordingForegroundService : Service() {
         )
     }
 
+    private fun closeRecordingGate() {
+        sendBroadcast(Intent(RecordingGateActivity.ACTION_CLOSE).setPackage(packageName))
+    }
+
     private fun stopForegroundAndSelf() {
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
     override fun onDestroy() {
+        closeRecordingGate()
         recorder?.cancel()
         executor.shutdownNow()
         super.onDestroy()
