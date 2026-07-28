@@ -44,28 +44,25 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 
 class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGateway {
     private val graph by lazy { (application as VoiceVoiceApplication).graph }
+    private val session get() = graph.accessibilitySession
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val correctionTracker = CorrectionTracker()
-    private val persistCorrectionRunnable = Runnable(::persistPendingCorrection)
+    private val correctionTracker get() = session.correctionTracker
 
     private lateinit var windowManager: WindowManager
     private var overlayRoot: View? = null
     private var microphoneButton: Button? = null
     private var translateButton: Button? = null
     private var statusText: TextView? = null
-    private var overlayState = OverlayState.IDLE
-    private var lastResultText: String? = null
     private var lastObservedPackage: String? = null
-    private var lastInsertionReceipt: AutoInsertionReceipt? = null
     private var replaceLastInsertionOnNextDelivery = false
     private var receiverRegistered = false
-    private var deterministicDebugRecording = false
 
     private val recordingReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -92,6 +89,7 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        activeInstance = this
         windowManager = getSystemService(WindowManager::class.java)
         val plan = accessibilityConnectionPlan(
             receiverRegistered = receiverRegistered,
@@ -100,8 +98,11 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
         if (plan.registerReceiver) registerRecordingReceiver()
         if (plan.initializeOverlay) {
             showOverlay()
-            renderState(OverlayState.IDLE, getString(R.string.overlay_ready))
         }
+        renderState(
+            session.overlayState,
+            session.statusMessage.ifBlank { getString(R.string.overlay_ready) },
+        )
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -111,8 +112,7 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
         val source = event.source ?: return
         val text = source.text?.toString() ?: return
         correctionTracker.onTextChanged(identityOf(source), text)
-        mainHandler.removeCallbacks(persistCorrectionRunnable)
-        mainHandler.postDelayed(persistCorrectionRunnable, CORRECTION_DEBOUNCE_MILLIS)
+        scheduleCorrectionPersistence()
     }
 
     override fun onInterrupt() = Unit
@@ -120,6 +120,7 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
     override fun onDestroy() {
         mainHandler.removeCallbacksAndMessages(null)
         scope.cancel()
+        if (activeInstance === this) activeInstance = null
         runCatching { stopService(Intent(this, RecordingForegroundService::class.java)) }
         closeRecordingGate()
         if (receiverRegistered) runCatching { unregisterReceiver(recordingReceiver) }
@@ -192,7 +193,7 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
     }
 
     private fun onMicrophoneClick() {
-        when (overlayState) {
+        when (session.overlayState) {
             OverlayState.IDLE, OverlayState.SUCCESS, OverlayState.ERROR -> startRecording()
             OverlayState.RECORDING -> stopRecording()
             OverlayState.PROCESSING -> Unit
@@ -210,7 +211,7 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
             return
         }
         if (BuildConfig.DEBUG && graph.settingsRepository.load().debugDeterministicMode) {
-            deterministicDebugRecording = true
+            session.deterministicDebugRecording = true
             renderState(OverlayState.RECORDING, getString(R.string.overlay_recording))
             return
         }
@@ -229,13 +230,13 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
     }
 
     private fun stopRecording() {
-        if (deterministicDebugRecording) {
-            deterministicDebugRecording = false
+        if (session.deterministicDebugRecording) {
+            session.deterministicDebugRecording = false
             renderState(OverlayState.PROCESSING, getString(R.string.overlay_processing))
             runCatching {
                 File.createTempFile("voicevoice-debug-", ".wav", cacheDir).also {
                     WavFile.writeSilence(it)
-                    processRecording(it)
+                    processDeterministicDebugRecording(it)
                 }
             }.onFailure { error ->
                 renderState(OverlayState.ERROR, error.message ?: getString(R.string.error_recording))
@@ -265,7 +266,7 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
         scope.launch {
             try {
                 val result = graph.voicePipeline.transcribe(RecordedAudio(audioFile), this@VoiceVoiceAccessibilityService)
-                lastResultText = result.text
+                session.lastResultText = result.text
                 mainHandler.post {
                     val message = if (result.insertedAutomatically) {
                         getString(R.string.overlay_copied_inserted)
@@ -284,8 +285,58 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
         }
     }
 
+    private fun processDeterministicDebugRecording(audioFile: File) {
+        session.deterministicDebugJob?.cancel()
+        session.deterministicDebugJob = graph.applicationScope.launch {
+            try {
+                delay(DEBUG_PROCESSING_DELAY_MILLIS)
+                val gateway = awaitActiveInstance()
+                    ?: throw IllegalStateException("Accessibility service did not reconnect")
+                val result = graph.voicePipeline.transcribe(RecordedAudio(audioFile), gateway)
+                session.lastResultText = result.text
+                val message = if (result.insertedAutomatically) {
+                    gateway.getString(R.string.overlay_copied_inserted)
+                } else {
+                    gateway.getString(R.string.overlay_copied)
+                }
+                activeInstance?.renderState(OverlayState.SUCCESS, message)
+                    ?: run {
+                        session.overlayState = OverlayState.SUCCESS
+                        session.statusMessage = message
+                    }
+            } catch (error: Exception) {
+                val message = error.message ?: getString(R.string.error_processing)
+                activeInstance?.renderState(OverlayState.ERROR, message)
+                    ?: run {
+                        session.overlayState = OverlayState.ERROR
+                        session.statusMessage = message
+                    }
+            } finally {
+                audioFile.delete()
+                session.deterministicDebugJob = null
+            }
+        }
+    }
+
+    private suspend fun awaitActiveInstance(): VoiceVoiceAccessibilityService? {
+        repeat(ACTIVE_INSTANCE_RETRIES) {
+            activeInstance?.let { return it }
+            delay(ACTIVE_INSTANCE_RETRY_MILLIS)
+        }
+        return null
+    }
+
+    private fun scheduleCorrectionPersistence() {
+        session.correctionPersistenceJob?.cancel()
+        session.correctionPersistenceJob = graph.applicationScope.launch {
+            delay(CORRECTION_DEBOUNCE_MILLIS)
+            awaitActiveInstance()?.persistPendingCorrection()
+            session.correctionPersistenceJob = null
+        }
+    }
+
     private fun translateLastResult() {
-        val sourceText = lastResultText ?: graph.historyRepository.latestResultText()
+        val sourceText = session.lastResultText ?: graph.historyRepository.latestResultText()
         if (sourceText.isNullOrBlank()) {
             renderState(OverlayState.ERROR, getString(R.string.error_no_translation_source))
             return
@@ -295,7 +346,7 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
             replaceLastInsertionOnNextDelivery = true
             try {
                 val result = graph.voicePipeline.translate(sourceText, this@VoiceVoiceAccessibilityService)
-                lastResultText = result.text
+                session.lastResultText = result.text
                 mainHandler.post {
                     val message = if (result.insertedAutomatically) {
                         getString(R.string.overlay_translation_inserted)
@@ -342,7 +393,7 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
     }
 
     private fun replaceLastInsertion(node: AccessibilityNodeInfo, replacement: String): AutoInsertionReceipt? {
-        val previous = lastInsertionReceipt ?: return null
+        val previous = session.lastInsertionReceipt ?: return null
         val target = identityOf(node)
         if (!sameTarget(previous.target, target)) return null
         val current = node.text?.toString().orEmpty()
@@ -380,7 +431,7 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
     }
 
     override fun registerAutomaticInsertion(receipt: AutoInsertionReceipt) {
-        lastInsertionReceipt = receipt
+        session.lastInsertionReceipt = receipt
         correctionTracker.begin(receipt)
     }
 
@@ -398,7 +449,7 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
 
     private fun persistPendingCorrection() {
         val correction = correctionTracker.consumePendingCorrection() ?: return
-        lastInsertionReceipt = lastInsertionReceipt?.copy(
+        session.lastInsertionReceipt = session.lastInsertionReceipt?.copy(
             insertedText = correction.correctedText,
             fullTextAfterInsertion = correction.fullFieldText,
         )
@@ -407,10 +458,12 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
                 type = HistoryType.CORRECTION,
                 text = correction.correctedText,
                 sourceText = correction.originalText,
-                appPackage = lastInsertionReceipt?.target?.packageName ?: lastObservedPackage,
+                appPackage = session.lastInsertionReceipt?.target?.packageName ?: lastObservedPackage,
             )
         }
-        statusText?.text = getString(R.string.overlay_correction_saved)
+        val message = getString(R.string.overlay_correction_saved)
+        session.statusMessage = message
+        statusText?.text = message
     }
 
     private fun identityOf(node: AccessibilityNodeInfo): TargetIdentity {
@@ -432,7 +485,8 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
     }
 
     private fun renderState(state: OverlayState, message: String) {
-        overlayState = state
+        session.overlayState = state
+        session.statusMessage = message
         microphoneButton?.apply {
             text = when (state) {
                 OverlayState.IDLE, OverlayState.SUCCESS, OverlayState.ERROR -> getString(R.string.overlay_start)
@@ -442,7 +496,7 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
             isEnabled = state != OverlayState.PROCESSING
         }
         statusText?.text = message.take(160)
-        translateButton?.visibility = if (lastResultText.isNullOrBlank() || state == OverlayState.PROCESSING) {
+        translateButton?.visibility = if (session.lastResultText.isNullOrBlank() || state == OverlayState.PROCESSING) {
             View.GONE
         } else {
             View.VISIBLE
@@ -471,16 +525,14 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
-    private enum class OverlayState {
-        IDLE,
-        RECORDING,
-        PROCESSING,
-        SUCCESS,
-        ERROR,
-    }
-
     private companion object {
+        @Volatile
+        var activeInstance: VoiceVoiceAccessibilityService? = null
+
         const val CORRECTION_DEBOUNCE_MILLIS = 750L
+        const val DEBUG_PROCESSING_DELAY_MILLIS = 20_000L
+        const val ACTIVE_INSTANCE_RETRIES = 20
+        const val ACTIVE_INSTANCE_RETRY_MILLIS = 250L
     }
 }
 

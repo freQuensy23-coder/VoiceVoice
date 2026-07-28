@@ -7,7 +7,6 @@ import com.voicevoice.app.model.RecordedAudio
 import com.voicevoice.app.model.Settings
 import com.voicevoice.app.model.VoiceVoiceException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -261,9 +260,6 @@ private class DeterministicVoiceProvider : VoiceProvider {
         ) {
             throw VoiceVoiceException("The debug recorder did not produce a valid WAV file")
         }
-        // Keep the debug-only processing state observable across one autonomous
-        // manual-test turn. Production providers use their real network/model latency.
-        delay(20_000)
         val hasScreenVocabulary = audioModelTerms.any { it.equals("Alexey", ignoreCase = true) } &&
             audioModelTerms.any { it.equals("VoiceVoice", ignoreCase = true) }
         return if (hasScreenVocabulary) {
