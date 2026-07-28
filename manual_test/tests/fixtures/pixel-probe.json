@@ -1,0 +1,13 @@
+{
+  "hierarchy": "<hierarchy><node text=\"\" content-desc=\"pixel probe\" bounds=\"[0,0][1,1]\" /></hierarchy>",
+  "screens": [
+    {
+      "answer": "red",
+      "png_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nWQAAAAASUVORK5CYII="
+    },
+    {
+      "answer": "blue",
+      "png_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    }
+  ]
+}

@@ -8,3 +8,15 @@ local.properties
 **/build/
 *.jks
 *.keystore
+
+# Codex Android manual-test runtime data
+manual_test/.venv/
+manual_test/reports/
+.manual-test-input/
+manual_test/dist/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+
+# Local agent planning data
+.hermes/

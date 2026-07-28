@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "manual-test-agent"
+version = "0.1.0"
+description = "Standalone Codex CLI Android manual-testing harness"
+requires-python = ">=3.11"
+dependencies = [
+  "cryptography>=43,<50",
+  "mcp>=1.12,<2",
+  "pydantic>=2.11,<3",
+  "PyYAML>=6,<7",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8,<9",
+  "pytest-asyncio>=0.24,<1",
+  "ruff>=0.12,<1",
+]
+
+[tool.ruff]
+line-length = 100
+
+[project.scripts]
+manual-test = "manual_test_agent.cli:main"
+android-test-mcp = "manual_test_agent.android_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/manual_test_agent"]
+artifacts = ["src/manual_test_agent/pixel_probe.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+asyncio_mode = "auto"

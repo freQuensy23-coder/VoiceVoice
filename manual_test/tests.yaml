@@ -1,0 +1,18 @@
+version: 1
+tests:
+  - id: recording-toggle
+    name: Recording state can be started and stopped
+    description: Check the complete visible interaction manually.
+    preflight:
+      - adb install -r app-debug.apk
+      - adb shell pm clear com.voicevoice.app
+      - adb shell am start -W -n com.voicevoice.app/.MainActivity
+    checklist:
+      - Open the application and establish its initial visible state.
+      - Start recording and verify the application visibly entered its recording state.
+      - Stop recording and verify the initial state returned.
+    agent_instruction: Complete every checklist item yourself. Do not skip steps, infer unseen results, or finish before inspecting every required evidence artifact.
+    evidence:
+      - Capture and inspect a screenshot of the initial state.
+      - Capture and inspect a screenshot after starting recording.
+      - Capture and inspect a screenshot after stopping recording.
