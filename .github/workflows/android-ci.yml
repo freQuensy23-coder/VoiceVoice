@@ -40,7 +40,19 @@ jobs:
           cache-provider: basic
 
       - name: Build debug APK and run Android lint
-        run: ./gradlew --no-daemon assembleDebug lintDebug
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon assembleDebug lintDebug 2>&1 | tee "$RUNNER_TEMP/android-build.log"
+
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: android-build-diagnostics
+          path: ${{ runner.temp }}/android-build.log
+          if-no-files-found: error
+          retention-days: 3
 
   unit-tests:
     name: Unit tests
@@ -65,7 +77,19 @@ jobs:
           cache-provider: basic
 
       - name: Run unit tests
-        run: ./gradlew --no-daemon testDebugUnitTest
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon testDebugUnitTest 2>&1 | tee "$RUNNER_TEMP/android-unit-tests.log"
+
+      - name: Upload unit-test diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: android-unit-test-diagnostics
+          path: ${{ runner.temp }}/android-unit-tests.log
+          if-no-files-found: error
+          retention-days: 3
 
   integration-tests:
     name: Instrumented tests
@@ -104,4 +128,13 @@ jobs:
           arch: x86_64
           profile: pixel_7
           disable-animations: true
-          script: ./gradlew --no-daemon connectedDebugAndroidTest
+          script: set -o pipefail; ./gradlew --no-daemon connectedDebugAndroidTest 2>&1 | tee "$RUNNER_TEMP/android-instrumented-tests.log"
+
+      - name: Upload instrumented-test diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: android-instrumented-test-diagnostics
+          path: ${{ runner.temp }}/android-instrumented-tests.log
+          if-no-files-found: warn
+          retention-days: 3
