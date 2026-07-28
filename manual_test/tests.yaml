@@ -4,6 +4,7 @@ tests:
     name: Recording state can be started and stopped
     description: Check the complete visible interaction manually.
     preflight:
+      - adb shell 'until cmd package list packages >/dev/null 2>&1; do sleep 2; done'
       - adb install -r app-debug.apk
       - adb shell pm clear com.voicevoice.app
       - adb shell am start -W -n com.voicevoice.app/.MainActivity

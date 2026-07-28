@@ -229,6 +229,12 @@ jobs:
           else
             printf '%s' "$CODEX_AUTH_SEED" > "$RUNNER_TEMP/auth/auth-state.fernet"
           fi
+      - name: Enable KVM for the fresh emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
       - name: Run preflight and one autonomous Codex session on a fresh emulator
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         env:
@@ -262,6 +268,9 @@ jobs:
           TEST_ID: ${{ matrix.test_id }}
         run: |
           set +x
+          if [[ ! -f "reports/$TEST_ID/codex-home/auth.json" ]]; then
+            exit 0
+          fi
           manual-test persist-auth --run-dir "reports/$TEST_ID" --output "$RUNNER_TEMP/auth/rotated.fernet"
           tree="$(mktemp -d)"
           git -C "$tree" init
