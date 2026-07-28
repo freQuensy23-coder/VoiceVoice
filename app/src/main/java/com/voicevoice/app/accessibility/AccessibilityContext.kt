@@ -3,6 +3,7 @@ package com.voicevoice.app.accessibility
 import android.accessibilityservice.AccessibilityService
 import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import com.voicevoice.app.model.DataCollectionResult
 import com.voicevoice.app.model.NodeBounds
 import java.util.ArrayDeque
@@ -35,21 +36,23 @@ class AccessibilitySnapshotFactory(
     fun capture(service: AccessibilityService): AccessibilitySnapshot {
         val roots = mutableListOf<AccessibilityNodeSnapshot>()
         var remaining = maxNodes
-        var activePackage = service.rootInActiveWindow?.packageName?.toString().orEmpty()
+        val activeRoot = service.rootInActiveWindow
+        var activePackage = activeRoot?.packageName?.toString().orEmpty()
 
-        val windowRoots = runCatching {
+        val applicationRoots = runCatching {
             service.windows
                 .asSequence()
-                .filter { it.root != null }
+                .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
                 .mapNotNull { it.root }
                 .toList()
         }.getOrDefault(emptyList())
 
-        val candidates = if (windowRoots.isNotEmpty()) {
-            windowRoots
+        val matchingRoots = if (activePackage.isNotBlank()) {
+            applicationRoots.filter { it.packageName?.toString() == activePackage }
         } else {
-            listOfNotNull(service.rootInActiveWindow)
+            applicationRoots
         }
+        val candidates = matchingRoots.ifEmpty { listOfNotNull(activeRoot) }
 
         for (root in candidates) {
             if (remaining <= 0) break
