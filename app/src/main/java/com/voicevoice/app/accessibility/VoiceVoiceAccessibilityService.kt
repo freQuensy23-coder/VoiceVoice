@@ -26,11 +26,13 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import com.voicevoice.app.BuildConfig
 import com.voicevoice.app.MainActivity
 import com.voicevoice.app.R
 import com.voicevoice.app.VoiceVoiceApplication
 import com.voicevoice.app.audio.RecordingForegroundService
 import com.voicevoice.app.audio.RecordingGateActivity
+import com.voicevoice.app.audio.WavFile
 import com.voicevoice.app.model.AutoInsertionReceipt
 import com.voicevoice.app.model.DataCollectionResult
 import com.voicevoice.app.model.HistoryType
@@ -63,6 +65,7 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
     private var lastInsertionReceipt: AutoInsertionReceipt? = null
     private var replaceLastInsertionOnNextDelivery = false
     private var receiverRegistered = false
+    private var deterministicDebugRecording = false
 
     private val recordingReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -200,6 +203,11 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
             )
             return
         }
+        if (BuildConfig.DEBUG && graph.settingsRepository.load().debugDeterministicMode) {
+            deterministicDebugRecording = true
+            renderState(OverlayState.RECORDING, getString(R.string.overlay_recording))
+            return
+        }
         runCatching {
             renderState(OverlayState.PROCESSING, getString(R.string.overlay_starting))
             startActivity(
@@ -215,6 +223,19 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
     }
 
     private fun stopRecording() {
+        if (deterministicDebugRecording) {
+            deterministicDebugRecording = false
+            renderState(OverlayState.PROCESSING, getString(R.string.overlay_processing))
+            runCatching {
+                File.createTempFile("voicevoice-debug-", ".wav", cacheDir).also {
+                    WavFile.writeSilence(it)
+                    processRecording(it)
+                }
+            }.onFailure { error ->
+                renderState(OverlayState.ERROR, error.message ?: getString(R.string.error_recording))
+            }
+            return
+        }
         renderState(OverlayState.PROCESSING, getString(R.string.overlay_processing))
         runCatching {
             startService(
