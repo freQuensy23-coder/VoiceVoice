@@ -51,6 +51,7 @@ def test_every_agent_matrix_job_gets_fresh_emulator_and_one_codex_session() -> N
 
     assert "matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}" in text
     assert "reactivecircus/android-emulator-runner" in text.lower()
+    assert "name: Enable KVM for the fresh emulator" in text
     assert "manual-test run" in text
     assert "--provider openai-codex" not in text  # launcher owns immutable provider selection
     assert "OPENAI_API_KEY" not in text
@@ -85,7 +86,17 @@ def test_credential_workflow_always_rotates_and_pushes_ciphertext_only() -> None
     persistence = text[
         text.index("name: Persist encrypted Codex auth state") : text.index("name: Upload evidence")
     ]
+    assert 'if [[ ! -f "reports/$TEST_ID/codex-home/auth.json" ]]' in persistence
     assert "evidence/" not in persistence
+
+
+def test_candidate_preflight_waits_for_android_package_manager() -> None:
+    suite = (ROOT / "manual_test/tests.yaml").read_text(encoding="utf-8")
+
+    assert "until cmd package list packages" in suite
+    assert suite.index("until cmd package list packages") < suite.index(
+        "adb install -r app-debug.apk"
+    )
 
 
 def test_publisher_is_workflow_run_only_and_never_executes_artifacts() -> None:
