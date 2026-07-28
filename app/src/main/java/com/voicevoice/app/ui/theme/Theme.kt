@@ -47,7 +47,10 @@ fun VoiceVoiceTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         val window = (context as Activity).window
-        WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+        WindowCompat.getInsetsController(window, view).apply {
+            isAppearanceLightStatusBars = !darkTheme
+            isAppearanceLightNavigationBars = !darkTheme
+        }
     }
 
     MaterialTheme(
