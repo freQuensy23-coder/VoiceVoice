@@ -293,3 +293,29 @@ def test_launch_fails_without_valid_mcp_submission(tmp_path: Path) -> None:
             runner=run,
             base_env={"PATH": os.environ["PATH"]},
         )
+
+
+def test_launch_preserves_partial_codex_output_on_bounded_timeout(tmp_path: Path) -> None:
+    def run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert kwargs["timeout"] == 300
+        raise subprocess.TimeoutExpired(
+            args,
+            kwargs["timeout"],  # type: ignore[arg-type]
+            output=b'{"type":"thread.started","thread_id":"thread-timeout"}\n',
+            stderr=b"still waiting for the model",
+        )
+
+    with pytest.raises(LaunchError, match="Codex invocation exceeded its 300s time limit"):
+        launch_case(
+            CASE,
+            AUTH,
+            tmp_path / "run",
+            runner=run,
+            base_env={"PATH": os.environ["PATH"]},
+        )
+
+    transcript = (tmp_path / "run/codex-transcript.jsonl").read_text()
+    process = json.loads((tmp_path / "run/codex-process.json").read_text())
+    assert "thread-timeout" in transcript
+    assert "still waiting for the model" in transcript
+    assert process == {"exit_codes": [124], "thread_id": None, "turns": 1}

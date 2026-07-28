@@ -36,7 +36,7 @@ FEATURES = [
     "hooks",
 ]
 MAX_TURNS = 48
-MAX_TURN_SECONDS = 180
+MAX_TURN_SECONDS = 300
 MAX_CASE_SECONDS = 1_800
 MAX_PROCESS_OUTPUT_BYTES = 2_000_000
 MAX_ACTION_LOG_BYTES = 2_000_000
@@ -379,6 +379,7 @@ def launch_case(
                 _resume_prompt(turn, hierarchy, previous_action),
                 latest_png,
             )
+        turn_timeout = min(MAX_TURN_SECONDS, remaining_seconds)
         try:
             completed = runner(
                 command,
@@ -387,10 +388,21 @@ def launch_case(
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 check=False,
-                timeout=min(MAX_TURN_SECONDS, remaining_seconds),
+                timeout=turn_timeout,
             )
         except subprocess.TimeoutExpired as exc:
-            raise LaunchError("Codex invocation exceeded its time limit") from exc
+            stdout = exc.stdout or ""
+            stderr = exc.stderr or ""
+            if isinstance(stdout, bytes):
+                stdout = stdout.decode("utf-8", errors="replace")
+            if isinstance(stderr, bytes):
+                stderr = stderr.decode("utf-8", errors="replace")
+            transcript_parts.append(stdout + (("\n[stderr]\n" + stderr) if stderr else ""))
+            exit_codes.append(124)
+            _write_process_artifacts(run_dir, transcript_parts, exit_codes, thread_id)
+            raise LaunchError(
+                f"Codex invocation exceeded its {int(turn_timeout)}s time limit"
+            ) from exc
         stdout, stderr = completed.stdout or "", completed.stderr or ""
         if len(stdout.encode()) + len(stderr.encode()) > MAX_PROCESS_OUTPUT_BYTES:
             raise LaunchError("Codex invocation output exceeded its size limit")
