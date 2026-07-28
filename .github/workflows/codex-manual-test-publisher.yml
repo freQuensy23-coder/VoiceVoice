@@ -1,0 +1,120 @@
+name: Codex Android Manual Test Publisher
+
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers] only inert output from the gated default-branch workflow is consumed
+    workflows: ["Codex Android Manual Tests"]
+    types: [completed]
+
+permissions:
+  actions: read # Download the trusted aggregate artifact from the named workflow run.
+  contents: read # Check out fixed context from the protected default branch.
+
+concurrency:
+  group: codex-manual-evidence-publisher
+  cancel-in-progress: false
+
+jobs:
+  comment:
+    name: Publish trusted sticky report
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read # Download the aggregate report artifact.
+      contents: write # Append inert evidence to the dedicated publication branch.
+      pull-requests: write # Create or update the sticky report comment.
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      TRUSTED_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}
+    steps:
+      - name: Reject stale or unrelated upstream runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run="$(jq -c '.workflow_run' "$GITHUB_EVENT_PATH")"
+          test "$(jq -r .path <<<"$run")" = ".github/workflows/codex-manual-tests.yml"
+          test "$(jq -r .event <<<"$run")" = "workflow_run"
+          test "$(jq -r .repository.full_name <<<"$run")" = "$GITHUB_REPOSITORY"
+          test "$(jq -r .head_branch <<<"$run")" = "$(jq -r '.repository.default_branch' "$GITHUB_EVENT_PATH")"
+      - name: Check out default-branch publisher code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.11"
+      - name: Install trusted publisher
+        run: python -m pip install './manual_test'
+      - name: Download aggregate report as inert data
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: aggregate-report
+          path: ${{ runner.temp }}/publisher-input
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+      - name: Revalidate publication bundle without executing artifacts
+        run: |
+          test -z "$(find "$RUNNER_TEMP/publisher-input" -type l -print -quit)"
+          test "$(find "$RUNNER_TEMP/publisher-input" -type f | wc -l)" -le 200
+          test "$(du -sb "$RUNNER_TEMP/publisher-input" | cut -f1)" -le 52428800
+          manual-test verify-publication --report "$RUNNER_TEMP/publisher-input/report.json" --publication "$RUNNER_TEMP/publisher-input/publication"
+      - name: Publish evidence to immutable GitHub URLs and render inline report
+        shell: bash
+        run: |
+          set -euo pipefail
+          overall="$(jq -r '.overall' "$RUNNER_TEMP/publisher-input/report.json")"
+          pr_number="$(jq -r '.pr_number' "$RUNNER_TEMP/publisher-input/report.json")"
+          report_head_sha="$(jq -r '.head_sha' "$RUNNER_TEMP/publisher-input/report.json")"
+          evidence_base="https://raw.githubusercontent.com/${REPOSITORY}/unpublished/publication"
+          if [[ "$overall" != "blocked" ]]; then
+            evidence_tree="$(mktemp -d)"
+            git -C "$evidence_tree" init
+            git -C "$evidence_tree" config user.name github-actions
+            git -C "$evidence_tree" config user.email github-actions@github.com
+            git -C "$evidence_tree" remote add origin "https://github.com/${REPOSITORY}.git"
+            if git -C "$evidence_tree" fetch --depth=1 origin refs/heads/manual-test-evidence; then
+              git -C "$evidence_tree" checkout -B manual-test-evidence FETCH_HEAD
+            else
+              git -C "$evidence_tree" checkout --orphan manual-test-evidence
+            fi
+            mkdir -p "$evidence_tree/publication"
+            cp -R "$RUNNER_TEMP/publisher-input/publication/." "$evidence_tree/publication/"
+            git -C "$evidence_tree" add publication
+            if ! git -C "$evidence_tree" diff --cached --quiet; then
+              git -C "$evidence_tree" commit -m "Publish manual-test evidence for run ${GITHUB_RUN_ID}"
+              current_head_sha="$(gh api "repos/$REPOSITORY/pulls/$pr_number" --jq .head.sha)"
+              test "$report_head_sha" = "$current_head_sha"
+              authorization="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+              git -C "$evidence_tree" -c "http.extraheader=AUTHORIZATION: basic ${authorization}" \
+                push origin HEAD:refs/heads/manual-test-evidence
+            fi
+            evidence_commit="$(git -C "$evidence_tree" rev-parse HEAD)"
+            evidence_base="https://raw.githubusercontent.com/${REPOSITORY}/${evidence_commit}/publication"
+          fi
+          manual-test render \
+            --report "$RUNNER_TEMP/publisher-input/report.json" \
+            --run-url "$TRUSTED_RUN_URL" \
+            --evidence-base-url "$evidence_base" \
+            --output comment.md
+      - name: Create or update sticky pull-request comment
+        shell: bash
+        run: |
+          set -euo pipefail
+          pr_number="$(jq -r '.pr_number' "$RUNNER_TEMP/publisher-input/report.json")"
+          test "$pr_number" -gt 0
+          report_head_sha="$(jq -r '.head_sha' "$RUNNER_TEMP/publisher-input/report.json")"
+          jq -Rs '{body: .}' comment.md > comment-payload.json
+          comment_id="$(gh api --paginate "repos/$REPOSITORY/issues/$pr_number/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]") | select(.body | startswith("<!-- codex-android-manual-tests -->")) | .id' \
+            | sed -n '1p')"
+          if [[ -n "$comment_id" ]]; then
+            current_head_sha="$(gh api "repos/$REPOSITORY/pulls/$pr_number" --jq .head.sha)"
+            test "$report_head_sha" = "$current_head_sha"
+            gh api --method PATCH "repos/$REPOSITORY/issues/comments/$comment_id" --input comment-payload.json
+          else
+            current_head_sha="$(gh api "repos/$REPOSITORY/pulls/$pr_number" --jq .head.sha)"
+            test "$report_head_sha" = "$current_head_sha"
+            gh api --method POST "repos/$REPOSITORY/issues/$pr_number/comments" --input comment-payload.json
+          fi

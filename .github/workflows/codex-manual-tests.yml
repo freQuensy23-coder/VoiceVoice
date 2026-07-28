@@ -1,0 +1,351 @@
+name: Codex Android Manual Tests
+
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers] protected default-branch code validates the triggering run and treats artifacts as data
+    workflows: ["Manual Test Build"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: codex-auth-state
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    outputs:
+      trusted: ${{ steps.gate.outputs.trusted }}
+      reason: ${{ steps.gate.outputs.reason }}
+      pr_number: ${{ steps.gate.outputs.pr_number }}
+      head_sha: ${{ steps.gate.outputs.head_sha }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HAS_KEY: ${{ secrets.CODEX_AUTH_STATE_KEY != '' }}
+      HAS_SEED: ${{ secrets.CODEX_AUTH_SEED != '' }}
+    steps:
+      - name: Discover and validate the unique current pull request
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          event="$(jq -c '.workflow_run' "$GITHUB_EVENT_PATH")"
+          sha="$(jq -r '.head_sha' <<<"$event")"
+          echo "head_sha=$sha" >> "$GITHUB_OUTPUT"
+          prs="$(gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/commits/$sha/pulls")"
+          count="$(jq 'length' <<<"$prs")"
+          pr="$(jq -c '.[0] // {}' <<<"$prs")"
+          number="$(jq -r '.number // empty' <<<"$pr")"
+          echo "pr_number=$number" >> "$GITHUB_OUTPUT"
+          trusted=false
+          reason="Trigger validation failed."
+          if [[ "$(jq -r '.event' <<<"$event")" != "pull_request" ]] ||
+             [[ "$(jq -r '.path' <<<"$event")" != ".github/workflows/manual-test-build.yml" ]] ||
+             [[ "$(jq -r '.repository.full_name' <<<"$event")" != "$GITHUB_REPOSITORY" ]] ||
+             [[ "$(jq -r '.head_repository.full_name' <<<"$event")" != "$GITHUB_REPOSITORY" ]]; then
+            reason="The triggering workflow metadata is invalid."
+          elif [[ "$count" != 1 ]]; then
+            reason="Exactly one pull request must contain the triggering commit."
+          elif [[ "$(jq -r '.base.repo.full_name' <<<"$pr")" != "$GITHUB_REPOSITORY" ]] ||
+               [[ "$(jq -r '.base.ref' <<<"$pr")" != "$(jq -r '.repository.default_branch' "$GITHUB_EVENT_PATH")" ]] ||
+               [[ "$(jq -r '.head.repo.full_name' <<<"$pr")" != "$GITHUB_REPOSITORY" ]] ||
+               [[ "$(jq -r '.head.sha' <<<"$pr")" != "$sha" ]] ||
+               [[ "$(jq -r '.state' <<<"$pr")" != open ]] ||
+               [[ "$(jq -r '.merged' <<<"$pr")" != false ]]; then
+            reason="The pull request repository, base, or current head does not match."
+          elif [[ ! "$(jq -r '.author_association' <<<"$pr")" =~ ^(OWNER|MEMBER|COLLABORATOR)$ ]]; then
+            reason="The pull-request author is not trusted for credentialed CI."
+          elif [[ "$(jq -r '.conclusion' <<<"$event")" != success ]]; then
+            reason="The unprivileged prepare or build failed."
+          elif [[ "$HAS_KEY" != true || "$HAS_SEED" != true ]]; then
+            reason="The encrypted standalone Codex OAuth state is not configured."
+          else
+            trusted=true
+            reason=
+          fi
+          echo "trusted=$trusted" >> "$GITHUB_OUTPUT"
+          echo "reason=$reason" >> "$GITHUB_OUTPUT"
+
+  prepare:
+    needs: authorize
+    if: needs.authorize.outputs.trusted == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.11"
+      - run: python -m pip install './manual_test[test]'
+      - name: Download candidate YAML under runner.temp
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: manual-test-suite
+          path: ${{ runner.temp }}/candidate-suite
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+      - name: Validate exact candidate YAML artifact
+        run: |
+          test -z "$(find "$RUNNER_TEMP/candidate-suite" -type l -print -quit)"
+          test "$(find "$RUNNER_TEMP/candidate-suite" -type f | wc -l)" -eq 1
+          test -f "$RUNNER_TEMP/candidate-suite/tests.yaml"
+          test "$(stat -c %s "$RUNNER_TEMP/candidate-suite/tests.yaml")" -le 262144
+      - name: Build matrix from candidate YAML with trusted parser
+        id: matrix
+        run: echo "matrix=$(manual-test matrix --suite "$RUNNER_TEMP/candidate-suite/tests.yaml")" >> "$GITHUB_OUTPUT"
+
+  pixel-probe:
+    needs: [authorize, prepare]
+    if: needs.authorize.outputs.trusted == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.11"
+      - name: Install exact standalone Codex CLI and trusted harness
+        run: | # zizmor: ignore[adhoc-packages] exact audited runtime version is intentionally pinned
+          npm install --global '@openai/codex@0.144.6'
+          test "$(codex --version)" = "codex-cli 0.144.6"
+          python -m pip install './manual_test'
+      - name: Revalidate open current pull request before OAuth use
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
+          AUTHORIZED_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          test "$(jq -r '.state' <<<"$pr")" = open
+          test "$(jq -r '.merged' <<<"$pr")" = false
+          test "$(jq -r '.head.repo.full_name' <<<"$pr")" = "$GITHUB_REPOSITORY"
+          test "$(jq -r '.head.sha' <<<"$pr")" = "$AUTHORIZED_SHA"
+          test "$(jq -r '.base.ref' <<<"$pr")" = "$(jq -r '.repository.default_branch' "$GITHUB_EVENT_PATH")"
+      - name: Restore ciphertext-only standalone Codex auth state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODEX_AUTH_STATE_KEY: ${{ secrets.CODEX_AUTH_STATE_KEY }}
+          CODEX_AUTH_SEED: ${{ secrets.CODEX_AUTH_SEED }}
+        run: |
+          set +x
+          mkdir -m 700 "$RUNNER_TEMP/auth"
+          if gh api "repos/$GITHUB_REPOSITORY/contents/auth-state.fernet?ref=codex-auth-state" --jq .content 2>/dev/null | base64 -d > "$RUNNER_TEMP/auth/auth-state.fernet"; then
+            :
+          else
+            printf '%s' "$CODEX_AUTH_SEED" > "$RUNNER_TEMP/auth/auth-state.fernet"
+          fi
+          manual-test decrypt-auth --input "$RUNNER_TEMP/auth/auth-state.fernet" --output "$RUNNER_TEMP/auth/auth.json"
+      - name: Run exact native-image red pixel probe
+        run: manual-test pixel-probe --run-dir reports/pixel-probe --auth-file "$RUNNER_TEMP/auth/auth.json"
+      - name: Persist pixel-probe rotated OAuth state
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODEX_AUTH_STATE_KEY: ${{ secrets.CODEX_AUTH_STATE_KEY }}
+        run: |
+          set +x
+          manual-test persist-auth --run-dir reports/pixel-probe --output "$RUNNER_TEMP/auth/rotated.fernet"
+          tree="$(mktemp -d)"
+          git -C "$tree" init
+          git -C "$tree" checkout --orphan codex-auth-state
+          cp "$RUNNER_TEMP/auth/rotated.fernet" "$tree/auth-state.fernet"
+          git -C "$tree" add auth-state.fernet
+          git -C "$tree" -c user.name=github-actions -c user.email=github-actions@github.com commit -m "Rotate Codex OAuth state after pixel probe"
+          git -C "$tree" remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          header="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -C "$tree" -c "http.extraheader=AUTHORIZATION: basic $header" push --force origin HEAD:refs/heads/codex-auth-state
+
+  manual:
+    needs: [authorize, prepare, pixel-probe]
+    if: needs.authorize.outputs.trusted == 'true'
+    permissions:
+      actions: read
+      contents: write
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.11"
+      - name: Install exact standalone Codex CLI and trusted harness
+        run: | # zizmor: ignore[adhoc-packages] exact audited runtime version is intentionally pinned
+          npm install --global '@openai/codex@0.144.6'
+          test "$(codex --version)" = "codex-cli 0.144.6"
+          python -m pip install './manual_test'
+      - name: Download untrusted inputs under runner.temp
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          pattern: manual-test-*
+          path: ${{ runner.temp }}/candidate
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+      - name: Validate exact APK and YAML files, sizes, and signatures
+        run: |
+          set -euo pipefail
+          test -z "$(find "$RUNNER_TEMP/candidate" -type l -print -quit)"
+          test "$(find "$RUNNER_TEMP/candidate" -type f | wc -l)" -eq 2
+          apk="$RUNNER_TEMP/candidate/manual-test-apk/app-debug.apk"
+          suite="$RUNNER_TEMP/candidate/manual-test-suite/tests.yaml"
+          test -f "$apk" -a -f "$suite"
+          test "$(stat -c %s "$apk")" -le 104857600
+          test "$(stat -c %s "$suite")" -le 262144
+          unzip -tqq "$apk"
+          unzip -l "$apk" | grep -q 'AndroidManifest.xml'
+      - name: Restore ciphertext-only standalone Codex auth state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODEX_AUTH_SEED: ${{ secrets.CODEX_AUTH_SEED }}
+        run: |
+          set +x
+          mkdir -m 700 "$RUNNER_TEMP/auth"
+          if gh api "repos/$GITHUB_REPOSITORY/contents/auth-state.fernet?ref=codex-auth-state" --jq .content 2>/dev/null | base64 -d > "$RUNNER_TEMP/auth/auth-state.fernet"; then
+            :
+          else
+            printf '%s' "$CODEX_AUTH_SEED" > "$RUNNER_TEMP/auth/auth-state.fernet"
+          fi
+      - name: Run preflight and one autonomous Codex session on a fresh emulator
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        env:
+          TEST_ID: ${{ matrix.test_id }}
+          CODEX_AUTH_STATE_KEY: ${{ secrets.CODEX_AUTH_STATE_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
+          AUTHORIZED_SHA: ${{ needs.authorize.outputs.head_sha }}
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7
+          disable-animations: true
+          script: |
+            manual-test preflight --suite "$RUNNER_TEMP/candidate/manual-test-suite/tests.yaml" --test-id "$TEST_ID" --cwd "$RUNNER_TEMP/candidate/manual-test-apk"
+            pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+            test "$(jq -r '.state' <<<"$pr")" = open
+            test "$(jq -r '.merged' <<<"$pr")" = false
+            test "$(jq -r '.head.repo.full_name' <<<"$pr")" = "$GITHUB_REPOSITORY"
+            test "$(jq -r '.head.sha' <<<"$pr")" = "$AUTHORIZED_SHA"
+            test "$(jq -r '.base.ref' <<<"$pr")" = "$(jq -r '.repository.default_branch' "$GITHUB_EVENT_PATH")"
+            manual-test decrypt-auth --input "$RUNNER_TEMP/auth/auth-state.fernet" --output "$RUNNER_TEMP/auth/auth.json"
+            manual-test run --suite "$RUNNER_TEMP/candidate/manual-test-suite/tests.yaml" --test-id "$TEST_ID" --run-dir "reports/$TEST_ID" --auth-file "$RUNNER_TEMP/auth/auth.json"
+      - name: Persist encrypted Codex auth state
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODEX_AUTH_STATE_KEY: ${{ secrets.CODEX_AUTH_STATE_KEY }}
+          TEST_ID: ${{ matrix.test_id }}
+        run: |
+          set +x
+          manual-test persist-auth --run-dir "reports/$TEST_ID" --output "$RUNNER_TEMP/auth/rotated.fernet"
+          tree="$(mktemp -d)"
+          git -C "$tree" init
+          git -C "$tree" checkout --orphan codex-auth-state
+          cp "$RUNNER_TEMP/auth/rotated.fernet" "$tree/auth-state.fernet"
+          git -C "$tree" add auth-state.fernet
+          git -C "$tree" -c user.name=github-actions -c user.email=github-actions@github.com commit -m "Rotate Codex OAuth state"
+          git -C "$tree" remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          header="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -C "$tree" -c "http.extraheader=AUTHORIZATION: basic $header" push --force origin HEAD:refs/heads/codex-auth-state
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: manual-test-${{ matrix.test_id }}
+          path: |
+            reports/${{ matrix.test_id }}/evidence/
+            reports/${{ matrix.test_id }}/actions.jsonl
+            reports/${{ matrix.test_id }}/final_result.json
+            reports/${{ matrix.test_id }}/codex-transcript.jsonl
+            reports/${{ matrix.test_id }}/codex-process.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  aggregate:
+    needs: [authorize, prepare, manual]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      statuses: write
+    env:
+      PREPARE_RESULT: ${{ needs.prepare.result }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.11"
+      - run: python -m pip install './manual_test'
+      - name: Download current-run artifacts under runner.temp
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          pattern: manual-test-*
+          path: ${{ runner.temp }}/test-artifacts
+      - name: Download candidate YAML for reporting
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: manual-test-suite
+          path: ${{ runner.temp }}/candidate-suite
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+      - name: Build bounded fallback or full report
+        if: always()
+        env:
+          PR: ${{ needs.authorize.outputs.pr_number }}
+          SHA: ${{ needs.authorize.outputs.head_sha }}
+          TRUSTED: ${{ needs.authorize.outputs.trusted }}
+          REASON: ${{ needs.authorize.outputs.reason }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/test-artifacts" "$RUNNER_TEMP/candidate-suite"
+          test -z "$(find "$RUNNER_TEMP/test-artifacts" -type l -print -quit)"
+          test -z "$(find "$RUNNER_TEMP/candidate-suite" -type l -print -quit)"
+          suite="$RUNNER_TEMP/candidate-suite/tests.yaml"
+          args=(aggregate --suite "$suite" --artifacts "$RUNNER_TEMP/test-artifacts" --output aggregate-output --pr-number "${PR:-0}" --head-sha "${SHA:-unknown}" --run-url "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID")
+          if [[ "$TRUSTED" != true ]]; then
+            args+=(--blocked-reason "${REASON:-Authorization failed.}")
+          elif [[ "$PREPARE_RESULT" != success || ! -f "$suite" ]]; then
+            args+=(--error-reason "Candidate YAML is missing or invalid, or prepare/build failed.")
+          fi
+          manual-test "${args[@]}" || true
+          test -f aggregate-output/report.json -a -f aggregate-output/comment.md
+          test "$(stat -c %s aggregate-output/comment.md)" -le 60000
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: aggregate-report
+          path: aggregate-output/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish status
+        if: always() && needs.authorize.outputs.head_sha != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          overall="$(jq -r .overall aggregate-output/report.json)"
+          state=error; [[ "$overall" == pass ]] && state=success; [[ "$overall" == fail ]] && state=failure
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$SHA" -f state="$state" -f context=codex-android-manual-tests -f description="Codex Android manual tests: $overall"

@@ -17,3 +17,7 @@ Gradle Kotlin DSL, and a version catalog.
 ```
 
 The app supports Android 8.0 (API 26) and newer.
+
+## Codex-backed manual tests
+
+The standalone Codex CLI Android manual-testing harness, YAML format, local commands, evidence contract, and CI trust boundary are documented in [manual_test/README.md](manual_test/README.md).

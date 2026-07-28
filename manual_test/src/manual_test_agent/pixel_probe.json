@@ -1,0 +1,10 @@
+{
+  "expected": "blue",
+  "actual": "red",
+  "path": "latest.png",
+  "width": 256,
+  "height": 256,
+  "rgb": [255, 0, 0],
+  "hierarchy": "<hierarchy><node text=\"\" content-desc=\"pixel probe\" bounds=\"[0,0][256,256]\" /></hierarchy>",
+  "fixture_kind": "generated-solid-rgb-png"
+}
