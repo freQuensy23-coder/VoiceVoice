@@ -9,11 +9,9 @@ data class Settings(
     val llmProviderId: String = OPENROUTER_PROVIDER,
     val llmModel: String = DEFAULT_LLM_MODEL,
     val languageHint: String = "",
-    val targetLanguage: String = "English",
     val postProcessEnabled: Boolean = true,
     val autoInsertEnabled: Boolean = true,
     val storeHistory: Boolean = true,
-    val debugDeterministicMode: Boolean = false,
     val downloadedLocalModelIds: Set<String> = emptySet(),
 ) {
     companion object {
@@ -36,7 +34,6 @@ data class DataCollectionResult(
 
 enum class HistoryType {
     TRANSCRIPTION,
-    TRANSLATION,
     CORRECTION,
 }
 
@@ -58,7 +55,6 @@ data class NodeBounds(
 
 data class TargetIdentity(
     val packageName: String,
-    val windowId: Int,
     val viewId: String?,
     val className: String?,
     val bounds: NodeBounds,

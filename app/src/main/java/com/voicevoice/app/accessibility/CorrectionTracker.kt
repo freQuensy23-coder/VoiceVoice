@@ -6,7 +6,7 @@ import com.voicevoice.app.model.TargetIdentity
 data class CorrectionCandidate(
     val originalText: String,
     val correctedText: String,
-    val fullFieldText: String,
+    val targetPackage: String,
 )
 
 /**
@@ -56,7 +56,7 @@ class CorrectionTracker {
         val candidate = CorrectionCandidate(
             originalText = current.insertedText,
             correctedText = corrected,
-            fullFieldText = changed,
+            targetPackage = current.target.packageName,
         )
         current.insertedText = corrected
         current.fullText = changed

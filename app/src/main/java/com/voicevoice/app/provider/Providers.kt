@@ -1,8 +1,5 @@
 package com.voicevoice.app.provider
 
-import android.content.Context
-import com.voicevoice.app.BuildConfig
-import com.voicevoice.app.data.SettingsRepository
 import com.voicevoice.app.model.RecordedAudio
 import com.voicevoice.app.model.Settings
 import com.voicevoice.app.model.VoiceVoiceException
@@ -26,7 +23,6 @@ interface VoiceProvider {
 
 interface LlmProvider {
     suspend fun postProcess(transcribedText: String, context: String): String
-    suspend fun translate(text: String, targetLanguage: String, context: String): String
 }
 
 interface ProviderResolver {
@@ -34,12 +30,8 @@ interface ProviderResolver {
     fun llmProvider(settings: Settings): LlmProvider
 }
 
-class ProviderFactory(
-    private val context: Context,
-    private val settingsRepository: SettingsRepository,
-) : ProviderResolver {
+class ProviderFactory : ProviderResolver {
     override fun voiceProvider(settings: Settings): VoiceProvider {
-        if (BuildConfig.DEBUG && settings.debugDeterministicMode) return DeterministicVoiceProvider()
         return when (settings.voiceProviderId) {
             Settings.OPENROUTER_PROVIDER -> OpenRouterVoiceProvider(OpenRouterHttpClient())
             else -> throw VoiceVoiceException("Unknown voice provider: ${settings.voiceProviderId}")
@@ -47,14 +39,11 @@ class ProviderFactory(
     }
 
     override fun llmProvider(settings: Settings): LlmProvider {
-        if (BuildConfig.DEBUG && settings.debugDeterministicMode) return DeterministicLlmProvider()
         return when (settings.llmProviderId) {
             Settings.OPENROUTER_PROVIDER -> OpenRouterLlmProvider(OpenRouterHttpClient(), settings)
             else -> throw VoiceVoiceException("Unknown LLM provider: ${settings.llmProviderId}")
         }
     }
-
-    fun localModelManager(): LocalModelManager = ExplicitLocalModelManager(context, settingsRepository)
 }
 
 class OpenRouterVoiceProvider(
@@ -130,24 +119,6 @@ class OpenRouterLlmProvider(
         val user = """
             TRANSCRIPT:
             ${transcribedText.take(20_000)}
-
-            SCREEN CONTEXT:
-            ${context.take(12_000)}
-        """.trimIndent()
-        return complete(system, user)
-    }
-
-    override suspend fun translate(text: String, targetLanguage: String, context: String): String {
-        requireApiKey(settings)
-        val language = targetLanguage.trim().ifBlank { "English" }
-        val system = """
-            Translate the supplied text into $language. Return only the translation.
-            Preserve names, variables, links, numbers, tone, and formatting. Use screen context only
-            to disambiguate terminology. Do not explain the translation.
-        """.trimIndent()
-        val user = """
-            TEXT:
-            ${text.take(20_000)}
 
             SCREEN CONTEXT:
             ${context.take(12_000)}
@@ -232,62 +203,6 @@ class OpenRouterHttpClient(
 
     private companion object {
         const val MAX_RESPONSE_CHARS = 256_000
-    }
-}
-
-private class DeterministicVoiceProvider : VoiceProvider {
-    override suspend fun transcribe(
-        recordedAudio: RecordedAudio,
-        audioModelTerms: List<String>,
-        settings: Settings,
-    ): String {
-        val header = withContext(Dispatchers.IO) {
-            recordedAudio.file.inputStream().use { input ->
-                val bytes = ByteArray(44)
-                var offset = 0
-                while (offset < bytes.size) {
-                    val count = input.read(bytes, offset, bytes.size - offset)
-                    if (count < 0) break
-                    offset += count
-                }
-                bytes.copyOf(offset)
-            }
-        }
-        if (
-            header.size < 44 ||
-            !header.copyOfRange(0, 4).contentEquals("RIFF".toByteArray(Charsets.US_ASCII)) ||
-            !header.copyOfRange(8, 12).contentEquals("WAVE".toByteArray(Charsets.US_ASCII))
-        ) {
-            throw VoiceVoiceException("The debug recorder did not produce a valid WAV file")
-        }
-        val hasScreenVocabulary = audioModelTerms.any { it.equals("Alexey", ignoreCase = true) } &&
-            audioModelTerms.any { it.equals("VoiceVoice", ignoreCase = true) }
-        return if (hasScreenVocabulary) {
-            "send alexey the voicevoice architecture tomorrow"
-        } else {
-            "send the architecture tomorrow"
-        }
-    }
-}
-
-private class DeterministicLlmProvider : LlmProvider {
-    override suspend fun postProcess(transcribedText: String, context: String): String {
-        val hasTranscriptVocabulary = transcribedText.contains("alexey", ignoreCase = true) &&
-            transcribedText.contains("voicevoice", ignoreCase = true)
-        val hasScreenContext = context.contains("Alexey", ignoreCase = true) &&
-            context.contains("VoiceVoice", ignoreCase = true)
-        return if (hasTranscriptVocabulary && hasScreenContext) {
-            "Send Alexey the VoiceVoice architecture tomorrow."
-        } else {
-            "Send the architecture tomorrow."
-        }
-    }
-
-    override suspend fun translate(text: String, targetLanguage: String, context: String): String {
-        return when (targetLanguage.trim().lowercase()) {
-            "hebrew", "иврит", "עברית" -> "שלח לאלכסיי את ארכיטקטורת VoiceVoice מחר."
-            else -> "[${targetLanguage.trim().ifBlank { "English" }}] $text"
-        }
     }
 }
 

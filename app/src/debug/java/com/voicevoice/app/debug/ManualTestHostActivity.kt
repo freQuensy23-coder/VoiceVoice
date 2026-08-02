@@ -43,14 +43,13 @@ class ManualTestHostActivity : ComponentActivity() {
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
         val graph = (application as VoiceVoiceApplication).graph
         val autoInsert = intent.getBooleanExtra(EXTRA_AUTO_INSERT, true)
+        graph.enableDeterministicManualTestMode(DeterministicProviderResolver())
         graph.settingsRepository.update {
             it.copy(
                 openRouterApiKey = "debug-only-not-a-real-key",
-                debugDeterministicMode = true,
                 autoInsertEnabled = autoInsert,
                 postProcessEnabled = true,
                 storeHistory = true,
-                targetLanguage = "Hebrew",
             )
         }
         setContent {
@@ -152,7 +151,6 @@ private fun ManualTestHost(
         Text("History count: ${history.size}", fontWeight = FontWeight.SemiBold)
         Text(
             "History types: transcriptions=${history.count { it.type == HistoryType.TRANSCRIPTION }}, " +
-                "translations=${history.count { it.type == HistoryType.TRANSLATION }}, " +
                 "corrections=${history.count { it.type == HistoryType.CORRECTION }}",
             fontWeight = FontWeight.SemiBold,
         )

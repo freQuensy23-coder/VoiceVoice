@@ -1,6 +1,7 @@
 package com.voicevoice.app.provider
 
 import android.content.Context
+import android.os.storage.StorageManager
 import com.voicevoice.app.data.SettingsRepository
 import com.voicevoice.app.model.VoiceVoiceException
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +45,7 @@ class ExplicitLocalModelManager(
     context: Context,
     private val settingsRepository: SettingsRepository,
 ) : LocalModelManager {
+    private val storageManager = context.getSystemService(StorageManager::class.java)
     private val directory = File(context.filesDir, "local-models").apply {
         if (!exists() && !mkdirs()) throw VoiceVoiceException("Could not create the local model directory")
     }.canonicalFile
@@ -64,8 +66,12 @@ class ExplicitLocalModelManager(
             val status = connection.responseCode
             if (status !in 200..299) throw VoiceVoiceException("Model download failed with HTTP $status")
             val total = connection.contentLengthLong
-            if (total > 0 && total > directory.usableSpace) {
-                throw VoiceVoiceException("There is not enough free storage for this model")
+            if (total > 0) {
+                val storageUuid = storageManager.getUuidForPath(directory)
+                if (total > storageManager.getAllocatableBytes(storageUuid)) {
+                    throw VoiceVoiceException("There is not enough free storage for this model")
+                }
+                storageManager.allocateBytes(storageUuid, total)
             }
             connection.inputStream.use { input ->
                 temporary.outputStream().use { output ->

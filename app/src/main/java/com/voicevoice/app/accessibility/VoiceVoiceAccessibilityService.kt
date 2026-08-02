@@ -47,6 +47,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
+import java.lang.ref.WeakReference
 
 class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGateway {
     private val graph by lazy { (application as VoiceVoiceApplication).graph }
@@ -58,10 +59,8 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
     private lateinit var windowManager: WindowManager
     private var overlayRoot: View? = null
     private var microphoneButton: Button? = null
-    private var translateButton: Button? = null
     private var statusText: TextView? = null
     private var lastObservedPackage: String? = null
-    private var replaceLastInsertionOnNextDelivery = false
     private var receiverRegistered = false
 
     private val recordingReceiver = object : BroadcastReceiver() {
@@ -164,18 +163,8 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
             setPadding(0, (4 * density).toInt(), 0, 0)
             maxWidth = (170 * density).toInt()
         }
-        val translate = Button(this).apply {
-            text = getString(R.string.translate)
-            contentDescription = getString(R.string.translate_last_result)
-            isAllCaps = false
-            setTextColor(Color.rgb(35, 28, 64))
-            backgroundTintList = ColorStateList.valueOf(Color.rgb(226, 219, 255))
-            visibility = View.GONE
-            setOnClickListener { translateLastResult() }
-        }
         root.addView(mic, LinearLayout.LayoutParams(dp(118), WindowManager.LayoutParams.WRAP_CONTENT))
         root.addView(status, LinearLayout.LayoutParams(dp(150), WindowManager.LayoutParams.WRAP_CONTENT))
-        root.addView(translate, LinearLayout.LayoutParams(dp(118), WindowManager.LayoutParams.WRAP_CONTENT))
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -194,7 +183,6 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
                 overlayRoot = root
                 microphoneButton = mic
                 statusText = status
-                translateButton = translate
             }
     }
 
@@ -216,7 +204,7 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
             )
             return
         }
-        if (BuildConfig.DEBUG && graph.settingsRepository.load().debugDeterministicMode) {
+        if (BuildConfig.DEBUG && graph.deterministicManualTestMode) {
             session.deterministicDebugRecording = true
             renderState(OverlayState.RECORDING, getString(R.string.overlay_recording))
             return
@@ -272,7 +260,6 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
         scope.launch {
             try {
                 val result = graph.voicePipeline.transcribe(RecordedAudio(audioFile), this@VoiceVoiceAccessibilityService)
-                session.lastResultText = result.text
                 mainHandler.post {
                     val message = if (result.insertedAutomatically) {
                         getString(R.string.overlay_copied_inserted)
@@ -299,7 +286,6 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
                 val gateway = awaitActiveInstance()
                     ?: throw IllegalStateException("Accessibility service did not reconnect")
                 val result = graph.voicePipeline.transcribe(RecordedAudio(audioFile), gateway)
-                session.lastResultText = result.text
                 val message = if (result.insertedAutomatically) {
                     gateway.getString(R.string.overlay_copied_inserted)
                 } else {
@@ -341,36 +327,6 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
         }
     }
 
-    private fun translateLastResult() {
-        val sourceText = session.lastResultText ?: graph.historyRepository.latestResultText()
-        if (sourceText.isNullOrBlank()) {
-            renderState(OverlayState.ERROR, getString(R.string.error_no_translation_source))
-            return
-        }
-        renderState(OverlayState.PROCESSING, getString(R.string.overlay_translating))
-        scope.launch {
-            replaceLastInsertionOnNextDelivery = true
-            try {
-                val result = graph.voicePipeline.translate(sourceText, this@VoiceVoiceAccessibilityService)
-                session.lastResultText = result.text
-                mainHandler.post {
-                    val message = if (result.insertedAutomatically) {
-                        getString(R.string.overlay_translation_inserted)
-                    } else {
-                        getString(R.string.overlay_translation_copied)
-                    }
-                    renderState(OverlayState.SUCCESS, message)
-                }
-            } catch (error: Exception) {
-                mainHandler.post {
-                    renderState(OverlayState.ERROR, error.message ?: getString(R.string.error_translation))
-                }
-            } finally {
-                replaceLastInsertionOnNextDelivery = false
-            }
-        }
-    }
-
     override fun collectContext(): DataCollectionResult {
         val snapshot = graph.accessibilitySnapshotFactory.capture(this)
         if (snapshot.packageName.isNotBlank()) lastObservedPackage = snapshot.packageName
@@ -384,10 +340,6 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
 
     override fun insertIntoFocusedField(text: String): AutoInsertionReceipt? {
         val node = focusedEditableNode() ?: return null
-        if (replaceLastInsertionOnNextDelivery) {
-            replaceLastInsertion(node, text)?.let { return it }
-        }
-
         val current = node.text?.toString().orEmpty()
         val rawStart = node.textSelectionStart
         val rawEnd = node.textSelectionEnd
@@ -396,19 +348,6 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
         val prefix = current.substring(0, start)
         val suffix = current.substring(end)
         return setNodeText(node, prefix, text, suffix)
-    }
-
-    private fun replaceLastInsertion(node: AccessibilityNodeInfo, replacement: String): AutoInsertionReceipt? {
-        val previous = session.lastInsertionReceipt ?: return null
-        val target = identityOf(node)
-        if (!sameAccessibilityTarget(previous.target, target)) return null
-        val current = node.text?.toString().orEmpty()
-        if (!current.startsWith(previous.prefix) || !current.endsWith(previous.suffix)) return null
-        val middleEnd = current.length - previous.suffix.length
-        if (middleEnd < previous.prefix.length) return null
-        val middle = current.substring(previous.prefix.length, middleEnd)
-        if (middle != previous.insertedText) return null
-        return setNodeText(node, previous.prefix, replacement, previous.suffix)
     }
 
     private fun setNodeText(
@@ -437,8 +376,13 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
     }
 
     override fun registerAutomaticInsertion(receipt: AutoInsertionReceipt) {
-        session.lastInsertionReceipt = receipt
         correctionTracker.begin(receipt)
+    }
+
+    override fun clearCorrectionTracking() {
+        session.correctionPersistenceJob?.cancel()
+        session.correctionPersistenceJob = null
+        correctionTracker.clear()
     }
 
     override fun currentApplicationPackage(): String? = lastObservedPackage
@@ -455,16 +399,12 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
 
     private fun persistPendingCorrection() {
         val correction = correctionTracker.consumePendingCorrection() ?: return
-        session.lastInsertionReceipt = session.lastInsertionReceipt?.copy(
-            insertedText = correction.correctedText,
-            fullTextAfterInsertion = correction.fullFieldText,
-        )
         if (graph.settingsRepository.load().storeHistory) {
             graph.historyRepository.add(
                 type = HistoryType.CORRECTION,
                 text = correction.correctedText,
                 sourceText = correction.originalText,
-                appPackage = session.lastInsertionReceipt?.target?.packageName ?: lastObservedPackage,
+                appPackage = correction.targetPackage.ifBlank { lastObservedPackage },
             )
         }
         val message = getString(R.string.overlay_correction_saved)
@@ -477,7 +417,6 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
         node.getBoundsInScreen(rect)
         return TargetIdentity(
             packageName = node.packageName?.toString().orEmpty(),
-            windowId = node.windowId,
             viewId = node.viewIdResourceName,
             className = node.className?.toString(),
             bounds = NodeBounds(rect.left, rect.top, rect.right, rect.bottom),
@@ -496,11 +435,6 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
             isEnabled = state != OverlayState.PROCESSING
         }
         statusText?.text = message.take(160)
-        translateButton?.visibility = if (session.lastResultText.isNullOrBlank() || state == OverlayState.PROCESSING) {
-            View.GONE
-        } else {
-            View.VISIBLE
-        }
     }
 
     private fun registerRecordingReceiver() {
@@ -527,7 +461,12 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
 
     private companion object {
         @Volatile
-        var activeInstance: VoiceVoiceAccessibilityService? = null
+        private var activeInstanceReference = WeakReference<VoiceVoiceAccessibilityService>(null)
+        var activeInstance: VoiceVoiceAccessibilityService?
+            get() = activeInstanceReference.get()
+            set(value) {
+                activeInstanceReference = WeakReference(value)
+            }
 
         const val CORRECTION_DEBOUNCE_MILLIS = 750L
         const val DEBUG_PROCESSING_DELAY_MILLIS = 20_000L

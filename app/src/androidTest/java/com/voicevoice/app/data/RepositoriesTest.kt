@@ -8,7 +8,6 @@ import com.voicevoice.app.model.Settings
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -57,36 +56,18 @@ class RepositoriesTest {
             appPackage = "org.telegram.messenger",
             createdAtMillis = 200,
         )
-        history.add(
-            HistoryType.TRANSLATION,
-            "תרגום",
-            sourceText = "Transcript",
-            appPackage = "com.whatsapp",
-            createdAtMillis = 300,
-        )
-
         val entries = history.list()
 
         assertEquals(
-            listOf(HistoryType.TRANSLATION, HistoryType.CORRECTION, HistoryType.TRANSCRIPTION),
+            listOf(HistoryType.CORRECTION, HistoryType.TRANSCRIPTION),
             entries.map { it.type },
         )
         assertEquals("Transcript", entries.first().sourceText)
-        assertEquals("com.whatsapp", entries.first().appPackage)
-        assertEquals("תרגום", history.latestResultText())
-        assertEquals(listOf(HistoryType.TRANSLATION), history.list(limit = 1).map { it.type })
+        assertEquals("org.telegram.messenger", entries.first().appPackage)
+        assertEquals(listOf(HistoryType.CORRECTION), history.list(limit = 1).map { it.type })
 
         history.clear()
         assertTrue(history.list().isEmpty())
-        assertNull(history.latestResultText())
-    }
-
-    @Test
-    fun correctionDoesNotReplaceLatestTranscriptionOrTranslationSource() {
-        history.add(HistoryType.TRANSCRIPTION, "Original", createdAtMillis = 100)
-        history.add(HistoryType.CORRECTION, "Edited", sourceText = "Original", createdAtMillis = 200)
-
-        assertEquals("Original", history.latestResultText())
     }
 
     @Test
@@ -99,11 +80,9 @@ class RepositoriesTest {
             llmProviderId = "llm-provider",
             llmModel = " llm-model ",
             languageHint = " RU ",
-            targetLanguage = " Hebrew ",
             postProcessEnabled = false,
             autoInsertEnabled = false,
             storeHistory = false,
-            debugDeterministicMode = true,
             downloadedLocalModelIds = setOf("whisper-small", "local-llm"),
         )
 
@@ -116,11 +95,9 @@ class RepositoriesTest {
         assertEquals("llm-provider", loaded.llmProviderId)
         assertEquals("llm-model", loaded.llmModel)
         assertEquals("RU", loaded.languageHint)
-        assertEquals("Hebrew", loaded.targetLanguage)
         assertFalse(loaded.postProcessEnabled)
         assertFalse(loaded.autoInsertEnabled)
         assertFalse(loaded.storeHistory)
-        assertTrue(loaded.debugDeterministicMode)
         assertEquals(settings.downloadedLocalModelIds, loaded.downloadedLocalModelIds)
 
         val stored = context.getSharedPreferences("voicevoice_settings_v1", Context.MODE_PRIVATE)
@@ -134,13 +111,13 @@ class RepositoriesTest {
     @Test
     fun settingsUpdateIsAtomicAndBlankKeyRemovesEncryptedValue() {
         val repository = SecureSettingsRepository(context)
-        repository.save(Settings(openRouterApiKey = "key", targetLanguage = "English"))
+        repository.save(Settings(openRouterApiKey = "key"))
 
         val updated = repository.update {
-            it.copy(openRouterApiKey = "", targetLanguage = "German")
+            it.copy(openRouterApiKey = "", languageHint = "de")
         }
 
-        assertEquals("German", updated.targetLanguage)
+        assertEquals("de", updated.languageHint)
         assertEquals("", repository.load().openRouterApiKey)
         assertEquals(
             "",

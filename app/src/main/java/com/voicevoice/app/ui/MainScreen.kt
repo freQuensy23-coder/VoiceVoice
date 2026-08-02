@@ -173,7 +173,7 @@ private fun HeroCard(
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    "A floating voice layer that transcribes, cleans up, translates, and inserts your words.",
+                    "A floating voice layer that transcribes, cleans up, and inserts your words.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White.copy(alpha = 0.86f),
                 )
@@ -298,7 +298,6 @@ private fun SettingsCard(
     var voiceModel by remember(refreshVersion) { mutableStateOf(settings.voiceModel) }
     var llmModel by remember(refreshVersion) { mutableStateOf(settings.llmModel) }
     var languageHint by remember(refreshVersion) { mutableStateOf(settings.languageHint) }
-    var targetLanguage by remember(refreshVersion) { mutableStateOf(settings.targetLanguage) }
     var postProcess by remember(refreshVersion) { mutableStateOf(settings.postProcessEnabled) }
     var autoInsert by remember(refreshVersion) { mutableStateOf(settings.autoInsertEnabled) }
     var storeHistory by remember(refreshVersion) { mutableStateOf(settings.storeHistory) }
@@ -352,14 +351,6 @@ private fun SettingsCard(
             singleLine = true,
             shape = RoundedCornerShape(16.dp),
         )
-        OutlinedTextField(
-            value = targetLanguage,
-            onValueChange = { targetLanguage = it },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Translation target") },
-            singleLine = true,
-            shape = RoundedCornerShape(16.dp),
-        )
         ToggleLine("Context-aware cleanup", "Use the visible screen to fix names and terms", postProcess) {
             postProcess = it
         }
@@ -378,7 +369,6 @@ private fun SettingsCard(
                         voiceModel = voiceModel.trim().ifBlank { Settings.DEFAULT_VOICE_MODEL },
                         llmModel = llmModel.trim().ifBlank { Settings.DEFAULT_LLM_MODEL },
                         languageHint = languageHint.trim(),
-                        targetLanguage = targetLanguage.trim().ifBlank { "English" },
                         postProcessEnabled = postProcess,
                         autoInsertEnabled = autoInsert,
                         storeHistory = storeHistory,
@@ -468,7 +458,7 @@ private fun EmptyHistoryCard() {
         ) {
             Text("No activity yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(
-                "Transcriptions, translations, and corrections to automatically inserted text will appear here.",
+                "Transcriptions and corrections to automatically inserted text will appear here.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -479,7 +469,6 @@ private fun EmptyHistoryCard() {
 private fun HistoryCard(entry: HistoryEntry) {
     val accent = when (entry.type) {
         HistoryType.TRANSCRIPTION -> MaterialTheme.colorScheme.primary
-        HistoryType.TRANSLATION -> MaterialTheme.colorScheme.tertiary
         HistoryType.CORRECTION -> MaterialTheme.colorScheme.error
     }
     Card(
@@ -586,6 +575,5 @@ private fun SectionTitle(
 
 private fun historyLabel(type: HistoryType): String = when (type) {
     HistoryType.TRANSCRIPTION -> "Transcription"
-    HistoryType.TRANSLATION -> "Translation"
     HistoryType.CORRECTION -> "Correction"
 }

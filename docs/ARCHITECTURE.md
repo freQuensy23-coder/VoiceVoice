@@ -52,11 +52,10 @@ The rest of the application does not construct model parameters. `OpenRouterVoic
 ```kotlin
 interface LlmProvider {
     suspend fun postProcess(transcribedText: String, context: String): String
-    suspend fun translate(text: String, targetLanguage: String, context: String): String
 }
 ```
 
-`OpenRouterLlmProvider` receives its model/settings when constructed. Call sites pass only the transcript and context for post-processing. Translation adds the requested target language.
+`OpenRouterLlmProvider` receives its model/settings when constructed. Call sites pass only the transcript and context for post-processing.
 
 ## Settings
 
@@ -85,26 +84,22 @@ Accessibility floating Stop
 
 The overlay displays starting, recording, processing, success, and error states. It remains non-focusable so the external editable field keeps input focus.
 
-## Translation sequence
-
-The floating `Translate` action uses the last result or latest transcription/translation history entry. It collects fresh screen context, invokes `LlmProvider.translate`, copies the translation, and attempts to replace the previous automatic insertion in the same field. If replacement is no longer safe, normal focused-field insertion is attempted. A successful translation insertion starts a new correction session.
-
 ## Correction tracking
 
 A correction session is created only from `registerAutomaticInsertion`, which is called only after `ACTION_SET_TEXT` succeeds. The session records:
 
-- target package, window, view ID or class/bounds identity;
+- target package plus view ID or class/bounds identity;
 - stable text prefix and suffix;
 - the exact inserted segment;
 - the expected full field text.
 
 `TYPE_VIEW_TEXT_CHANGED` events are accepted only from the same target. Changes are debounced. A correction is stored only when the stable prefix and suffix still delimit the inserted segment and that segment changed.
 
-Clipboard delivery does not create a session. Therefore text manually pasted from the clipboard is not correction-tracked when it was not automatically inserted by VoiceVoice.
+Clipboard-only delivery clears any previous correction session and does not create a new one. Therefore text manually pasted from the clipboard is not correction-tracked when it was not automatically inserted by VoiceVoice.
 
 ## History
 
-`SqliteHistoryRepository` stores `TRANSCRIPTION`, `TRANSLATION`, and `CORRECTION` entries. Corrections retain the previous inserted segment as `sourceText`. Accessibility context and API keys are never written to history.
+`SqliteHistoryRepository` stores `TRANSCRIPTION` and `CORRECTION` entries. Corrections retain the previous inserted segment as `sourceText`. Accessibility context and API keys are never written to history.
 
 ## Local models
 
@@ -114,4 +109,4 @@ Local providers can be added behind the same provider interfaces. `ExplicitLocal
 
 `ManualTestHostActivity` exists only in the debug source set. It selects deterministic implementations without network access, provides an editable target and context terms, and exposes user-driven correction controls. The production manifest does not contain this activity.
 
-The existing isolated Codex harness installs the debug APK, enables the Accessibility Service through ADB, interacts with the same recording gate, overlay, pipeline, insertion, history, and correction code, and captures screenshot/XML evidence for every verdict.
+The existing isolated Codex harness installs the debug APK and enables the Accessibility Service through ADB. The debug host substitutes a deterministic WAV fixture and deterministic providers for device audio and network calls; the tests exercise the production overlay state machine, collectors, pipeline, clipboard delivery, insertion, history, and correction code, then capture screenshot/XML evidence for every verdict.
