@@ -34,7 +34,6 @@ class SecureSettingsRepository(context: Context) : SettingsRepository {
             llmModel = preferences.getString(KEY_LLM_MODEL, Settings.DEFAULT_LLM_MODEL)
                 ?: Settings.DEFAULT_LLM_MODEL,
             languageHint = preferences.getString(KEY_LANGUAGE_HINT, "").orEmpty(),
-            targetLanguage = preferences.getString(KEY_TARGET_LANGUAGE, "English") ?: "English",
             postProcessEnabled = preferences.getBoolean(KEY_POST_PROCESS, true),
             autoInsertEnabled = preferences.getBoolean(KEY_AUTO_INSERT, true),
             storeHistory = preferences.getBoolean(KEY_STORE_HISTORY, true),
@@ -57,7 +56,6 @@ class SecureSettingsRepository(context: Context) : SettingsRepository {
             .putString(KEY_LLM_PROVIDER, settings.llmProviderId)
             .putString(KEY_LLM_MODEL, settings.llmModel.trim())
             .putString(KEY_LANGUAGE_HINT, settings.languageHint.trim())
-            .putString(KEY_TARGET_LANGUAGE, settings.targetLanguage.trim())
             .putBoolean(KEY_POST_PROCESS, settings.postProcessEnabled)
             .putBoolean(KEY_AUTO_INSERT, settings.autoInsertEnabled)
             .putBoolean(KEY_STORE_HISTORY, settings.storeHistory)
@@ -125,7 +123,6 @@ class SecureSettingsRepository(context: Context) : SettingsRepository {
         const val KEY_LLM_PROVIDER = "llm_provider"
         const val KEY_LLM_MODEL = "llm_model"
         const val KEY_LANGUAGE_HINT = "language_hint"
-        const val KEY_TARGET_LANGUAGE = "target_language"
         const val KEY_POST_PROCESS = "post_process"
         const val KEY_AUTO_INSERT = "auto_insert"
         const val KEY_STORE_HISTORY = "store_history"

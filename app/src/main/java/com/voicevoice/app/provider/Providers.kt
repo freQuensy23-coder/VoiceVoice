@@ -26,7 +26,6 @@ interface VoiceProvider {
 
 interface LlmProvider {
     suspend fun postProcess(transcribedText: String, context: String): String
-    suspend fun translate(text: String, targetLanguage: String, context: String): String
 }
 
 interface ProviderResolver {
@@ -130,24 +129,6 @@ class OpenRouterLlmProvider(
         val user = """
             TRANSCRIPT:
             ${transcribedText.take(20_000)}
-
-            SCREEN CONTEXT:
-            ${context.take(12_000)}
-        """.trimIndent()
-        return complete(system, user)
-    }
-
-    override suspend fun translate(text: String, targetLanguage: String, context: String): String {
-        requireApiKey(settings)
-        val language = targetLanguage.trim().ifBlank { "English" }
-        val system = """
-            Translate the supplied text into $language. Return only the translation.
-            Preserve names, variables, links, numbers, tone, and formatting. Use screen context only
-            to disambiguate terminology. Do not explain the translation.
-        """.trimIndent()
-        val user = """
-            TEXT:
-            ${text.take(20_000)}
 
             SCREEN CONTEXT:
             ${context.take(12_000)}
@@ -283,12 +264,6 @@ private class DeterministicLlmProvider : LlmProvider {
         }
     }
 
-    override suspend fun translate(text: String, targetLanguage: String, context: String): String {
-        return when (targetLanguage.trim().lowercase()) {
-            "hebrew", "иврит", "עברית" -> "שלח לאלכסיי את ארכיטקטורת VoiceVoice מחר."
-            else -> "[${targetLanguage.trim().ifBlank { "English" }}] $text"
-        }
-    }
 }
 
 private fun requireApiKey(settings: Settings) {

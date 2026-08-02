@@ -52,11 +52,10 @@ The rest of the application does not construct model parameters. `OpenRouterVoic
 ```kotlin
 interface LlmProvider {
     suspend fun postProcess(transcribedText: String, context: String): String
-    suspend fun translate(text: String, targetLanguage: String, context: String): String
 }
 ```
 
-`OpenRouterLlmProvider` receives its model/settings when constructed. Call sites pass only the transcript and context for post-processing. Translation adds the requested target language.
+`OpenRouterLlmProvider` receives its model/settings when constructed. Call sites pass only the transcript and context for post-processing.
 
 ## Settings
 
@@ -85,10 +84,6 @@ Accessibility floating Stop
 
 The overlay displays starting, recording, processing, success, and error states. It remains non-focusable so the external editable field keeps input focus.
 
-## Translation sequence
-
-The floating `Translate` action uses the last result or latest transcription/translation history entry. It collects fresh screen context, invokes `LlmProvider.translate`, copies the translation, and attempts to replace the previous automatic insertion in the same field. If replacement is no longer safe, normal focused-field insertion is attempted. A successful translation insertion starts a new correction session.
-
 ## Correction tracking
 
 A correction session is created only from `registerAutomaticInsertion`, which is called only after `ACTION_SET_TEXT` succeeds. The session records:
@@ -100,11 +95,11 @@ A correction session is created only from `registerAutomaticInsertion`, which is
 
 `TYPE_VIEW_TEXT_CHANGED` events are accepted only from the same target. Changes are debounced. A correction is stored only when the stable prefix and suffix still delimit the inserted segment and that segment changed.
 
-Clipboard delivery does not create a session. Therefore text manually pasted from the clipboard is not correction-tracked when it was not automatically inserted by VoiceVoice.
+Clipboard-only delivery clears any previous correction session and does not create a new one. Therefore text manually pasted from the clipboard is not correction-tracked when it was not automatically inserted by VoiceVoice.
 
 ## History
 
-`SqliteHistoryRepository` stores `TRANSCRIPTION`, `TRANSLATION`, and `CORRECTION` entries. Corrections retain the previous inserted segment as `sourceText`. Accessibility context and API keys are never written to history.
+`SqliteHistoryRepository` stores `TRANSCRIPTION` and `CORRECTION` entries. Corrections retain the previous inserted segment as `sourceText`. Accessibility context and API keys are never written to history.
 
 ## Local models
 

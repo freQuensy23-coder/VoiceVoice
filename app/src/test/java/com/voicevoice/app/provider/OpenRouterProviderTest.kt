@@ -116,7 +116,7 @@ class OpenRouterProviderTest {
     }
 
     @Test
-    fun llmTranslationUsesTargetLanguageAndArrayTextResponse() = runTest {
+    fun llmPostProcessingExtractsArrayTextResponse() = runTest {
         val content = JSONArray()
             .put(JSONObject().put("type", "text").put("text", "שלום "))
             .put(JSONObject().put("type", "image").put("image_url", "ignored"))
@@ -127,13 +127,13 @@ class OpenRouterProviderTest {
             Settings(openRouterApiKey = "key"),
         )
 
-        val result = provider.translate("Hello world", "Hebrew", "chat context")
+        val result = provider.postProcess("hello world", "chat context")
 
         assertEquals("שלום עולם", result)
         val messages = client.calls.single().body.getJSONArray("messages")
-        assertTrue(messages.getJSONObject(0).getString("content").contains("Hebrew"))
+        assertTrue(messages.getJSONObject(0).getString("content").contains("correct speech-to-text"))
         val user = messages.getJSONObject(1).getString("content")
-        assertTrue(user.contains("Hello world"))
+        assertTrue(user.contains("hello world"))
         assertTrue(user.contains("chat context"))
     }
 
@@ -149,7 +149,7 @@ class OpenRouterProviderTest {
         val empty = FakeJsonClient(completionResponse(""))
         val emptyError = runCatching {
             OpenRouterLlmProvider(empty, Settings(openRouterApiKey = "key"))
-                .translate("text", "English", "context")
+                .postProcess("text", "context")
         }.exceptionOrNull()
         assertTrue(emptyError is VoiceVoiceException)
     }

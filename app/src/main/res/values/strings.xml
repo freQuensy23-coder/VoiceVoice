@@ -14,19 +14,12 @@
     <string name="overlay_starting">Starting microphone…</string>
     <string name="overlay_recording">Recording — tap Stop</string>
     <string name="overlay_processing">Transcribing…</string>
-    <string name="overlay_translating">Translating…</string>
     <string name="overlay_copied">Copied to clipboard</string>
     <string name="overlay_copied_inserted">Copied and inserted</string>
-    <string name="overlay_translation_copied">Translation copied</string>
-    <string name="overlay_translation_inserted">Translation copied and inserted</string>
     <string name="overlay_correction_saved">Correction saved to history</string>
     <string name="overlay_microphone_description">VoiceVoice microphone</string>
-    <string name="translate">Translate</string>
-    <string name="translate_last_result">Translate the last VoiceVoice result</string>
     <string name="error_missing_audio">Recorded audio is missing</string>
     <string name="error_recording">Recording failed</string>
     <string name="error_processing">Transcription failed</string>
-    <string name="error_translation">Translation failed</string>
     <string name="error_microphone_permission">Grant microphone permission in VoiceVoice</string>
-    <string name="error_no_translation_source">No result is available to translate</string>
 </resources>

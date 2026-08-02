@@ -9,7 +9,6 @@ data class Settings(
     val llmProviderId: String = OPENROUTER_PROVIDER,
     val llmModel: String = DEFAULT_LLM_MODEL,
     val languageHint: String = "",
-    val targetLanguage: String = "English",
     val postProcessEnabled: Boolean = true,
     val autoInsertEnabled: Boolean = true,
     val storeHistory: Boolean = true,
@@ -36,7 +35,6 @@ data class DataCollectionResult(
 
 enum class HistoryType {
     TRANSCRIPTION,
-    TRANSLATION,
     CORRECTION,
 }
 

@@ -47,6 +47,7 @@ class VoicePipelineTest {
         assertEquals(listOf("Send Alexey."), repositories.gateway.clipboard)
         assertEquals(listOf("Send Alexey."), repositories.gateway.insertions)
         assertEquals(repositories.gateway.insertionResult, repositories.gateway.registered.single())
+        assertEquals(0, repositories.gateway.correctionTrackingClears)
         assertEquals(
             StoredHistory(
                 HistoryType.TRANSCRIPTION,
@@ -96,6 +97,7 @@ class VoicePipelineTest {
         assertEquals(listOf("final"), repositories.gateway.clipboard)
         assertTrue(repositories.gateway.insertions.isEmpty())
         assertTrue(repositories.gateway.registered.isEmpty())
+        assertEquals(1, repositories.gateway.correctionTrackingClears)
         assertTrue(repositories.history.records.isEmpty())
     }
 
@@ -111,29 +113,8 @@ class VoicePipelineTest {
         assertFalse(result.insertedAutomatically)
         assertEquals(listOf("speech"), repositories.gateway.clipboard)
         assertTrue(repositories.gateway.registered.isEmpty())
+        assertEquals(1, repositories.gateway.correctionTrackingClears)
         assertEquals(1, repositories.history.records.size)
-    }
-
-    @Test
-    fun translationUsesScreenContextTargetLanguageAndTranslationHistory() = runTest {
-        val repositories = Fixtures(
-            Settings(openRouterApiKey = "key", targetLanguage = "Hebrew"),
-        )
-        repositories.gateway.collection = DataCollectionResult("chat context", listOf("unused"))
-        repositories.llm.translated = "שלום"
-        repositories.gateway.insertionResult = receipt("שלום")
-
-        val result = repositories.pipeline.translate("Hello", repositories.gateway)
-
-        assertEquals("שלום", result.text)
-        assertEquals(HistoryType.TRANSLATION, result.historyType)
-        assertEquals("Hello", repositories.llm.translationText)
-        assertEquals("Hebrew", repositories.llm.translationTarget)
-        assertEquals("chat context", repositories.llm.translationContext)
-        assertEquals(
-            StoredHistory(HistoryType.TRANSLATION, "שלום", "Hello", "org.telegram.messenger"),
-            repositories.history.records.single(),
-        )
     }
 
     @Test
@@ -160,20 +141,6 @@ class VoicePipelineTest {
         assertTrue(llmError is VoiceVoiceException)
         assertTrue(llmFailure.gateway.clipboard.isEmpty())
         assertTrue(llmFailure.history.records.isEmpty())
-    }
-
-    @Test
-    fun blankTranslationIsRejectedBeforeProvidersOrDelivery() = runTest {
-        val repositories = Fixtures(Settings(openRouterApiKey = "key"))
-
-        val error = runCatching {
-            repositories.pipeline.translate(" \n ", repositories.gateway)
-        }.exceptionOrNull()
-
-        assertTrue(error is VoiceVoiceException)
-        assertEquals(0, repositories.providers.llmResolutions)
-        assertTrue(repositories.gateway.clipboard.isEmpty())
-        assertTrue(repositories.history.records.isEmpty())
     }
 
     private fun audio(): RecordedAudio {
@@ -245,8 +212,6 @@ class VoicePipelineTest {
 
         override fun list(limit: Int): List<HistoryEntry> = emptyList()
 
-        override fun latestResultText(): String? = records.lastOrNull()?.text
-
         override fun clear() {
             records.clear()
         }
@@ -270,24 +235,13 @@ class VoicePipelineTest {
 
     private class FakeLlmProvider : LlmProvider {
         var postProcessed = "final"
-        var translated = "translated"
         var postProcessText: String? = null
         var postProcessContext: String? = null
-        var translationText: String? = null
-        var translationTarget: String? = null
-        var translationContext: String? = null
 
         override suspend fun postProcess(transcribedText: String, context: String): String {
             postProcessText = transcribedText
             postProcessContext = context
             return postProcessed
-        }
-
-        override suspend fun translate(text: String, targetLanguage: String, context: String): String {
-            translationText = text
-            translationTarget = targetLanguage
-            translationContext = context
-            return translated
         }
     }
 
@@ -311,6 +265,7 @@ class VoicePipelineTest {
         val clipboard = mutableListOf<String>()
         val insertions = mutableListOf<String>()
         val registered = mutableListOf<AutoInsertionReceipt>()
+        var correctionTrackingClears = 0
 
         override fun collectContext(): DataCollectionResult = collection
 
@@ -325,6 +280,10 @@ class VoicePipelineTest {
 
         override fun registerAutomaticInsertion(receipt: AutoInsertionReceipt) {
             registered += receipt
+        }
+
+        override fun clearCorrectionTracking() {
+            correctionTrackingClears++
         }
 
         override fun currentApplicationPackage(): String = "org.telegram.messenger"

@@ -17,7 +17,6 @@ class AccessibilitySessionStateTest {
 
         assertEquals(OverlayState.IDLE, session.overlayState)
         assertEquals("", session.statusMessage)
-        assertNull(session.lastResultText)
         assertNull(session.lastInsertionReceipt)
         assertFalse(session.deterministicDebugRecording)
         assertNull(session.deterministicDebugJob)
@@ -32,13 +31,11 @@ class AccessibilitySessionStateTest {
 
         session.overlayState = OverlayState.PROCESSING
         session.statusMessage = "Transcribing"
-        session.lastResultText = receipt.insertedText
         session.lastInsertionReceipt = receipt
         session.deterministicDebugRecording = true
 
         assertEquals(OverlayState.PROCESSING, session.overlayState)
         assertEquals("Transcribing", session.statusMessage)
-        assertEquals(receipt.insertedText, session.lastResultText)
         assertSame(receipt, session.lastInsertionReceipt)
         assertSame(tracker, session.correctionTracker)
         assertTrue(session.deterministicDebugRecording)

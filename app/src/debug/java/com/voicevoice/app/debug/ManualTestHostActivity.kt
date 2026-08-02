@@ -50,7 +50,6 @@ class ManualTestHostActivity : ComponentActivity() {
                 autoInsertEnabled = autoInsert,
                 postProcessEnabled = true,
                 storeHistory = true,
-                targetLanguage = "Hebrew",
             )
         }
         setContent {
@@ -152,7 +151,6 @@ private fun ManualTestHost(
         Text("History count: ${history.size}", fontWeight = FontWeight.SemiBold)
         Text(
             "History types: transcriptions=${history.count { it.type == HistoryType.TRANSCRIPTION }}, " +
-                "translations=${history.count { it.type == HistoryType.TRANSLATION }}, " +
                 "corrections=${history.count { it.type == HistoryType.CORRECTION }}",
             fontWeight = FontWeight.SemiBold,
         )

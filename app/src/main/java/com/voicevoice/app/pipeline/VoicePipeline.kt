@@ -15,6 +15,7 @@ interface AccessibilityGateway {
     fun copyToClipboard(text: String)
     fun insertIntoFocusedField(text: String): AutoInsertionReceipt?
     fun registerAutomaticInsertion(receipt: AutoInsertionReceipt)
+    fun clearCorrectionTracking()
     fun currentApplicationPackage(): String?
 }
 
@@ -49,25 +50,6 @@ class VoicePipeline(
         )
     }
 
-    suspend fun translate(
-        sourceText: String,
-        gateway: AccessibilityGateway,
-    ): PipelineResult {
-        if (sourceText.isBlank()) throw VoiceVoiceException("There is no text to translate")
-        val settings = settingsRepository.load()
-        val collected = gateway.collectContext()
-        val translated = providerFactory.llmProvider(settings)
-            .translate(sourceText, settings.targetLanguage, collected.contextForLlm)
-            .trim()
-        if (translated.isBlank()) throw VoiceVoiceException("Translation is empty")
-        return deliver(
-            text = translated,
-            sourceText = sourceText,
-            type = HistoryType.TRANSLATION,
-            gateway = gateway,
-        )
-    }
-
     private fun deliver(
         text: String,
         sourceText: String?,
@@ -77,7 +59,11 @@ class VoicePipeline(
         val settings = settingsRepository.load()
         gateway.copyToClipboard(text)
         val receipt = if (settings.autoInsertEnabled) gateway.insertIntoFocusedField(text) else null
-        receipt?.let(gateway::registerAutomaticInsertion)
+        if (receipt != null) {
+            gateway.registerAutomaticInsertion(receipt)
+        } else {
+            gateway.clearCorrectionTracking()
+        }
         if (settings.storeHistory) {
             historyRepository.add(
                 type = type,

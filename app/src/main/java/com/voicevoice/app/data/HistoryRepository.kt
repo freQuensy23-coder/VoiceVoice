@@ -17,7 +17,6 @@ interface HistoryRepository {
     ): Long
 
     fun list(limit: Int = 100): List<HistoryEntry>
-    fun latestResultText(): String?
     fun clear()
 }
 
@@ -89,21 +88,6 @@ class SqliteHistoryRepository(context: Context) : SQLiteOpenHelper(
                 )
             }
             return entries
-        }
-    }
-
-    override fun latestResultText(): String? {
-        readableDatabase.query(
-            "history",
-            arrayOf("text"),
-            "type IN (?, ?)",
-            arrayOf(HistoryType.TRANSCRIPTION.name, HistoryType.TRANSLATION.name),
-            null,
-            null,
-            "created_at DESC, id DESC",
-            "1",
-        ).use { cursor ->
-            return if (cursor.moveToFirst()) cursor.getString(0) else null
         }
     }
 
