@@ -88,7 +88,7 @@ The overlay displays starting, recording, processing, success, and error states.
 
 A correction session is created only from `registerAutomaticInsertion`, which is called only after `ACTION_SET_TEXT` succeeds. The session records:
 
-- target package, window, view ID or class/bounds identity;
+- target package plus view ID or class/bounds identity;
 - stable text prefix and suffix;
 - the exact inserted segment;
 - the expected full field text.

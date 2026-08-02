@@ -12,7 +12,6 @@ data class Settings(
     val postProcessEnabled: Boolean = true,
     val autoInsertEnabled: Boolean = true,
     val storeHistory: Boolean = true,
-    val debugDeterministicMode: Boolean = false,
     val downloadedLocalModelIds: Set<String> = emptySet(),
 ) {
     companion object {
@@ -56,7 +55,6 @@ data class NodeBounds(
 
 data class TargetIdentity(
     val packageName: String,
-    val windowId: Int,
     val viewId: String?,
     val className: String?,
     val bounds: NodeBounds,

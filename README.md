@@ -7,8 +7,6 @@
 
 VoiceVoice is an Android background voice-transcription application built around an Accessibility Service and a floating microphone control. It records speech, collects context from the active accessibility tree, transcribes audio through a pluggable `VoiceProvider`, post-processes through a pluggable `LlmProvider`, copies the result to the clipboard, inserts it into the focused editable field when possible, and stores local history.
 
-The previous starter screen and local recording toggle mock have been removed.
-
 ## Implemented flow
 
 1. Enable the VoiceVoice Accessibility Service and grant microphone permission.

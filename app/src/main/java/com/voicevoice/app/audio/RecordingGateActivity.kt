@@ -63,8 +63,6 @@ class RecordingGateActivity : Activity() {
             )
             clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             attributes = attributes.apply { alpha = WINDOW_ALPHA }
-            statusBarColor = Color.TRANSPARENT
-            navigationBarColor = Color.TRANSPARENT
         }
         setContentView(View(this).apply { setBackgroundColor(Color.TRANSPARENT) })
         registerRecordingReceiver()
@@ -137,7 +135,6 @@ class RecordingGateActivity : Activity() {
         handler.removeCallbacks(startupTimeout)
         if (!isFinishing) {
             finish()
-            overridePendingTransition(0, 0)
         }
     }
 

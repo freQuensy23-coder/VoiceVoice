@@ -12,7 +12,6 @@ import org.junit.Test
 class CorrectionTrackerTest {
     private val target = TargetIdentity(
         packageName = "example.app",
-        windowId = 7,
         viewId = "message",
         className = "android.widget.EditText",
         bounds = NodeBounds(0, 0, 500, 120),
@@ -32,6 +31,7 @@ class CorrectionTrackerTest {
         assertTrue(tracker.hasActiveSession())
         assertEquals("helo", correction?.originalText)
         assertEquals("hello", correction?.correctedText)
+        assertEquals("example.app", correction?.targetPackage)
     }
 
     @Test
@@ -48,16 +48,6 @@ class CorrectionTrackerTest {
         tracker.begin(receipt(prefix = "", inserted = "text", suffix = ""))
         tracker.onTextChanged(target.copy(viewId = "other"), "edited")
         assertNull(tracker.consumePendingCorrection())
-    }
-
-    @Test
-    fun transientWindowIdChangesDoNotBreakTheSameFieldSession() {
-        val tracker = CorrectionTracker()
-        tracker.begin(receipt(prefix = "", inserted = "tomorrow", suffix = ""))
-
-        tracker.onTextChanged(target.copy(windowId = 99), "today")
-
-        assertEquals("today", tracker.consumePendingCorrection()?.correctedText)
     }
 
     @Test
@@ -87,7 +77,6 @@ class CorrectionTrackerTest {
         assertEquals("hello", first?.correctedText)
         assertEquals("hello", second?.originalText)
         assertEquals("Hello", second?.correctedText)
-        assertEquals("Before Hello after", second?.fullFieldText)
     }
 
     @Test
@@ -99,7 +88,7 @@ class CorrectionTrackerTest {
         tracker.onTextChanged(anonymousTarget.copy(bounds = NodeBounds(1, 0, 500, 120)), "wrong")
         assertNull(tracker.consumePendingCorrection())
 
-        tracker.onTextChanged(anonymousTarget.copy(windowId = 99), "right")
+        tracker.onTextChanged(anonymousTarget, "right")
         assertEquals("right", tracker.consumePendingCorrection()?.correctedText)
     }
 

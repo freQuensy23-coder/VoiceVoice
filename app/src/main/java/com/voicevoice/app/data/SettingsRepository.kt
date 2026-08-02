@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import androidx.core.content.edit
 import com.voicevoice.app.model.Settings
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -37,7 +38,6 @@ class SecureSettingsRepository(context: Context) : SettingsRepository {
             postProcessEnabled = preferences.getBoolean(KEY_POST_PROCESS, true),
             autoInsertEnabled = preferences.getBoolean(KEY_AUTO_INSERT, true),
             storeHistory = preferences.getBoolean(KEY_STORE_HISTORY, true),
-            debugDeterministicMode = preferences.getBoolean(KEY_DEBUG_MODE, false),
             downloadedLocalModelIds = preferences.getStringSet(KEY_LOCAL_MODELS, emptySet())?.toSet()
                 ?: emptySet(),
         )
@@ -49,19 +49,18 @@ class SecureSettingsRepository(context: Context) : SettingsRepository {
         } else {
             encrypt(settings.openRouterApiKey)
         }
-        preferences.edit()
-            .putString(KEY_OPENROUTER_KEY, encryptedKey)
-            .putString(KEY_VOICE_PROVIDER, settings.voiceProviderId)
-            .putString(KEY_VOICE_MODEL, settings.voiceModel.trim())
-            .putString(KEY_LLM_PROVIDER, settings.llmProviderId)
-            .putString(KEY_LLM_MODEL, settings.llmModel.trim())
-            .putString(KEY_LANGUAGE_HINT, settings.languageHint.trim())
-            .putBoolean(KEY_POST_PROCESS, settings.postProcessEnabled)
-            .putBoolean(KEY_AUTO_INSERT, settings.autoInsertEnabled)
-            .putBoolean(KEY_STORE_HISTORY, settings.storeHistory)
-            .putBoolean(KEY_DEBUG_MODE, settings.debugDeterministicMode)
-            .putStringSet(KEY_LOCAL_MODELS, settings.downloadedLocalModelIds.toSet())
-            .apply()
+        preferences.edit {
+            putString(KEY_OPENROUTER_KEY, encryptedKey)
+            putString(KEY_VOICE_PROVIDER, settings.voiceProviderId)
+            putString(KEY_VOICE_MODEL, settings.voiceModel.trim())
+            putString(KEY_LLM_PROVIDER, settings.llmProviderId)
+            putString(KEY_LLM_MODEL, settings.llmModel.trim())
+            putString(KEY_LANGUAGE_HINT, settings.languageHint.trim())
+            putBoolean(KEY_POST_PROCESS, settings.postProcessEnabled)
+            putBoolean(KEY_AUTO_INSERT, settings.autoInsertEnabled)
+            putBoolean(KEY_STORE_HISTORY, settings.storeHistory)
+            putStringSet(KEY_LOCAL_MODELS, settings.downloadedLocalModelIds.toSet())
+        }
     }
 
     override fun update(transform: (Settings) -> Settings): Settings = synchronized(lock) {
@@ -89,7 +88,7 @@ class SecureSettingsRepository(context: Context) : SettingsRepository {
             cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(128, iv))
             cipher.doFinal(encrypted).toString(Charsets.UTF_8)
         }.getOrElse {
-            preferences.edit().remove(KEY_OPENROUTER_KEY).apply()
+            preferences.edit { remove(KEY_OPENROUTER_KEY) }
             ""
         }
     }
@@ -126,7 +125,6 @@ class SecureSettingsRepository(context: Context) : SettingsRepository {
         const val KEY_POST_PROCESS = "post_process"
         const val KEY_AUTO_INSERT = "auto_insert"
         const val KEY_STORE_HISTORY = "store_history"
-        const val KEY_DEBUG_MODE = "debug_mode"
         const val KEY_LOCAL_MODELS = "local_models"
     }
 }

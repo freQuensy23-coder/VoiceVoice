@@ -83,7 +83,6 @@ class RepositoriesTest {
             postProcessEnabled = false,
             autoInsertEnabled = false,
             storeHistory = false,
-            debugDeterministicMode = true,
             downloadedLocalModelIds = setOf("whisper-small", "local-llm"),
         )
 
@@ -99,7 +98,6 @@ class RepositoriesTest {
         assertFalse(loaded.postProcessEnabled)
         assertFalse(loaded.autoInsertEnabled)
         assertFalse(loaded.storeHistory)
-        assertTrue(loaded.debugDeterministicMode)
         assertEquals(settings.downloadedLocalModelIds, loaded.downloadedLocalModelIds)
 
         val stored = context.getSharedPreferences("voicevoice_settings_v1", Context.MODE_PRIVATE)

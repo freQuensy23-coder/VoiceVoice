@@ -153,7 +153,6 @@ class VoicePipelineTest {
     private fun receipt(text: String) = AutoInsertionReceipt(
         target = TargetIdentity(
             packageName = "org.telegram.messenger",
-            windowId = 7,
             viewId = "message",
             className = "android.widget.EditText",
             bounds = NodeBounds(0, 0, 500, 100),

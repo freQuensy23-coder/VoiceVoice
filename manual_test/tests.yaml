@@ -2,7 +2,7 @@ version: 1
 tests:
   - id: production-setup
     name: Production setup and modern application shell
-    description: Verify that the old mock is gone and the production setup, provider, local-model, privacy, and history surfaces are usable.
+    description: Verify that the production setup, provider, local-model, privacy, and history surfaces are usable.
     preflight:
       - adb shell 'until cmd package list packages >/dev/null 2>&1; do sleep 2; done'
       - adb install -r app-debug.apk
@@ -14,7 +14,7 @@ tests:
       - adb shell am start -W -n com.voicevoice.app/.MainActivity
       - adb shell sleep 3
     checklist:
-      - Inspect the initial screen and verify a polished VoiceVoice shell, setup progress, microphone readiness, and the Accessibility requirement are visible without any starter recording mock.
+      - Inspect the initial screen and verify a polished VoiceVoice shell, setup progress, microphone readiness, and the Accessibility requirement are visible.
       - Inspect provider configuration and verify the OpenRouter key is blank or masked, voice and LLM models are configurable, and transcription, insertion, and history controls are present.
       - Inspect the local-model and history areas and verify local models are described as explicit downloads and the empty history state covers transcriptions and corrections.
     agent_instruction: "CRITICAL TOOL PROTOCOL: every Codex invocation must call exactly one Android MCP tool and then end immediately with no prose; the harness rejects the case if one response contains two tool calls. A tool result already includes the new screenshot, so never pair tap/tap_text/swipe/press with observe, never pair observe with capture, never pair swipe with capture, and never pair inspect with submit. Wait for the next invocation between those actions. Work only with the VoiceVoice screen. If an unrelated system dialog appears, dismiss it before collecting evidence. Capture separate top and lower-screen artifacts and inspect both before submitting. Use kebab-case evidence IDs."

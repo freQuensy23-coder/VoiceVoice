@@ -47,6 +47,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
+import java.lang.ref.WeakReference
 
 class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGateway {
     private val graph by lazy { (application as VoiceVoiceApplication).graph }
@@ -203,7 +204,7 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
             )
             return
         }
-        if (BuildConfig.DEBUG && graph.settingsRepository.load().debugDeterministicMode) {
+        if (BuildConfig.DEBUG && graph.deterministicManualTestMode) {
             session.deterministicDebugRecording = true
             renderState(OverlayState.RECORDING, getString(R.string.overlay_recording))
             return
@@ -375,14 +376,12 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
     }
 
     override fun registerAutomaticInsertion(receipt: AutoInsertionReceipt) {
-        session.lastInsertionReceipt = receipt
         correctionTracker.begin(receipt)
     }
 
     override fun clearCorrectionTracking() {
         session.correctionPersistenceJob?.cancel()
         session.correctionPersistenceJob = null
-        session.lastInsertionReceipt = null
         correctionTracker.clear()
     }
 
@@ -400,16 +399,12 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
 
     private fun persistPendingCorrection() {
         val correction = correctionTracker.consumePendingCorrection() ?: return
-        session.lastInsertionReceipt = session.lastInsertionReceipt?.copy(
-            insertedText = correction.correctedText,
-            fullTextAfterInsertion = correction.fullFieldText,
-        )
         if (graph.settingsRepository.load().storeHistory) {
             graph.historyRepository.add(
                 type = HistoryType.CORRECTION,
                 text = correction.correctedText,
                 sourceText = correction.originalText,
-                appPackage = session.lastInsertionReceipt?.target?.packageName ?: lastObservedPackage,
+                appPackage = correction.targetPackage.ifBlank { lastObservedPackage },
             )
         }
         val message = getString(R.string.overlay_correction_saved)
@@ -422,7 +417,6 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
         node.getBoundsInScreen(rect)
         return TargetIdentity(
             packageName = node.packageName?.toString().orEmpty(),
-            windowId = node.windowId,
             viewId = node.viewIdResourceName,
             className = node.className?.toString(),
             bounds = NodeBounds(rect.left, rect.top, rect.right, rect.bottom),
@@ -467,7 +461,12 @@ class VoiceVoiceAccessibilityService : AccessibilityService(), AccessibilityGate
 
     private companion object {
         @Volatile
-        var activeInstance: VoiceVoiceAccessibilityService? = null
+        private var activeInstanceReference = WeakReference<VoiceVoiceAccessibilityService>(null)
+        var activeInstance: VoiceVoiceAccessibilityService?
+            get() = activeInstanceReference.get()
+            set(value) {
+                activeInstanceReference = WeakReference(value)
+            }
 
         const val CORRECTION_DEBOUNCE_MILLIS = 750L
         const val DEBUG_PROCESSING_DELAY_MILLIS = 20_000L
