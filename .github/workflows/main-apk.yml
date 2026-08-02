@@ -1,0 +1,62 @@
+name: Main APK
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+# Do not add a cancelling concurrency group here: every main commit must produce its own APK.
+jobs:
+  apk:
+    name: Build installable APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out exact main commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92
+        with:
+          cache-provider: basic
+
+      - name: Build debug APK
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Package commit-addressed APK and checksum
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_apk="app/build/outputs/apk/debug/app-debug.apk"
+          test -f "$source_apk"
+          artifact_dir="$RUNNER_TEMP/main-apk"
+          artifact_name="VoiceVoice-${GITHUB_SHA}-debug.apk"
+          mkdir -p "$artifact_dir"
+          cp "$source_apk" "$artifact_dir/$artifact_name"
+          (
+            cd "$artifact_dir"
+            sha256sum "$artifact_name" > "$artifact_name.sha256"
+          )
+          echo "artifact_dir=$artifact_dir" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: voicevoice-apk-${{ github.sha }}
+          path: ${{ steps.package.outputs.artifact_dir }}
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
