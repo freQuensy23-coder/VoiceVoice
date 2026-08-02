@@ -109,4 +109,4 @@ Local providers can be added behind the same provider interfaces. `ExplicitLocal
 
 `ManualTestHostActivity` exists only in the debug source set. It selects deterministic implementations without network access, provides an editable target and context terms, and exposes user-driven correction controls. The production manifest does not contain this activity.
 
-The existing isolated Codex harness installs the debug APK, enables the Accessibility Service through ADB, interacts with the same recording gate, overlay, pipeline, insertion, history, and correction code, and captures screenshot/XML evidence for every verdict.
+The existing isolated Codex harness installs the debug APK and enables the Accessibility Service through ADB. The debug host substitutes a deterministic WAV fixture and deterministic providers for device audio and network calls; the tests exercise the production overlay state machine, collectors, pipeline, clipboard delivery, insertion, history, and correction code, then capture screenshot/XML evidence for every verdict.
