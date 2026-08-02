@@ -29,6 +29,15 @@ def test_root_readme_links_manual_testing_harness() -> None:
     assert "manual_test/README.md" in text
 
 
+def test_root_readme_documents_main_commit_apk_artifacts() -> None:
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "actions/workflows/main-apk.yml" in text
+    assert "Every push to `main`, including a merge commit" in text
+    assert "voicevoice-apk-<commit SHA>" in text
+    assert "SHA-256" in text
+
+
 def test_runtime_artifacts_and_isolated_homes_are_ignored() -> None:
     text = (ROOT / ".gitignore").read_text(encoding="utf-8")
     assert "manual_test/.venv/" in text

@@ -1,6 +1,7 @@
 # VoiceVoice
 
 [![Android CI](https://github.com/freQuensy23-coder/VoiceVoice/actions/workflows/android-ci.yml/badge.svg)](https://github.com/freQuensy23-coder/VoiceVoice/actions/workflows/android-ci.yml)
+[![Main APK](https://github.com/freQuensy23-coder/VoiceVoice/actions/workflows/main-apk.yml/badge.svg?branch=main)](https://github.com/freQuensy23-coder/VoiceVoice/actions/workflows/main-apk.yml)
 [![Manual Test Build](https://github.com/freQuensy23-coder/VoiceVoice/actions/workflows/manual-test-build.yml/badge.svg)](https://github.com/freQuensy23-coder/VoiceVoice/actions/workflows/manual-test-build.yml)
 [![Codex Android Manual Tests](https://github.com/freQuensy23-coder/VoiceVoice/actions/workflows/codex-manual-tests.yml/badge.svg)](https://github.com/freQuensy23-coder/VoiceVoice/actions/workflows/codex-manual-tests.yml)
 
@@ -47,6 +48,12 @@ Requirements:
 ```
 
 VoiceVoice supports Android 8.0 (API 26) and newer and targets API 37.
+
+## APK from `main`
+
+Every push to `main`, including a merge commit, runs the [Main APK workflow](https://github.com/freQuensy23-coder/VoiceVoice/actions/workflows/main-apk.yml). The workflow checks out the exact commit, builds an installable debug APK, generates its SHA-256 checksum, and uploads both files as the `voicevoice-apk-<commit SHA>` artifact for 30 days.
+
+Open the workflow run for the required commit and download the artifact from its **Artifacts** section. Production distribution signing is intentionally separate from this commit-level development build.
 
 ## Manual agent testing
 

@@ -28,6 +28,21 @@ def test_untrusted_pr_workflow_has_no_credentials_or_agent_execution() -> None:
     assert {job.get("if") for job in workflow["jobs"].values()} == {owner_condition}
 
 
+def test_main_apk_workflow_builds_and_publishes_every_main_commit() -> None:
+    text, workflow = load("main-apk.yml")
+
+    assert re.search(r"on:\n  push:\n    branches:\n      - main(?:\n|$)", text)
+    assert "pull_request:" not in text
+    assert "concurrency:" not in text
+    assert workflow["permissions"] == {"contents": "read"}
+    assert "./gradlew --no-daemon assembleDebug" in text
+    assert "app/build/outputs/apk/debug/app-debug.apk" in text
+    assert "VoiceVoice-${GITHUB_SHA}-debug.apk" in text
+    assert "sha256sum" in text
+    assert "name: voicevoice-apk-${{ github.sha }}" in text
+    assert "retention-days: 30" in text
+
+
 def test_privileged_agent_workflow_runs_only_after_trust_gate_from_base_code() -> None:
     text, workflow = load("codex-manual-tests.yml")
 
