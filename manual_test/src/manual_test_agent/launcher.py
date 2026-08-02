@@ -42,6 +42,7 @@ MAX_PROCESS_OUTPUT_BYTES = 2_000_000
 MAX_ACTION_LOG_BYTES = 2_000_000
 MAX_TRANSCRIPT_BYTES = 20_000_000
 MAX_NO_ACTION_INVOCATIONS = 3
+MAX_ACTIONS_PER_INVOCATION = 8
 MAX_PREFLIGHT_SECONDS = 180
 
 
@@ -419,7 +420,9 @@ def launch_case(
             raise LaunchError("Codex resume returned a different thread id")
         _write_process_artifacts(run_dir, transcript_parts, exit_codes, thread_id)
         actions = _read_actions(run_dir)
-        if len(actions) == previous_actions and turn > 1:
+        if len(actions) == previous_actions:
+            if turn == 1:
+                raise LaunchError("the first Codex invocation must call observe")
             no_action_invocations += 1
             if no_action_invocations > MAX_NO_ACTION_INVOCATIONS:
                 raise LaunchError("Codex repeatedly ended a turn without an Android MCP tool call")
@@ -428,13 +431,16 @@ def launch_case(
                 "launcher_note": "The previous Codex invocation made no MCP call. Call exactly one now.",
             }
             continue
-        if len(actions) != previous_actions + 1:
-            raise LaunchError("each Codex invocation must make exactly one Android MCP tool call")
+        new_actions = actions[previous_actions:]
+        if len(new_actions) > MAX_ACTIONS_PER_INVOCATION:
+            raise LaunchError("Codex made too many Android MCP tool calls in one invocation")
         no_action_invocations = 0
-        action = actions[-1]
+        action = new_actions[-1]
         previous_action = action
-        if turn == 1 and action["tool"] != "observe":
+        if turn == 1 and new_actions[0]["tool"] != "observe":
             raise LaunchError("the first Codex invocation must call observe")
+        if any(item["tool"] == "submit" for item in new_actions[:-1]):
+            raise LaunchError("submit must be the final Android MCP tool call")
         previous_actions = len(actions)
         result_path = run_dir / "final_result.json"
         if action["tool"] == "submit":

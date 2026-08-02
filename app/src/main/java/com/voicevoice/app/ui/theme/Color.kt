@@ -2,9 +2,13 @@ package com.voicevoice.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple40 = Color(0xFF6750A4)
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey40 = Color(0xFF625B71)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink40 = Color(0xFF7D5260)
-val Pink80 = Color(0xFFEFB8C8)
+val Ink = Color(0xFF171723)
+val SoftInk = Color(0xFF5F6072)
+val VoiceViolet = Color(0xFF6153F5)
+val VoiceVioletDark = Color(0xFFB9B2FF)
+val ElectricBlue = Color(0xFF2F8BFF)
+val Mint = Color(0xFF1A9D82)
+val WarmCoral = Color(0xFFE65858)
+val Canvas = Color(0xFFF6F6FB)
+val NightCanvas = Color(0xFF11121A)
+val NightSurface = Color(0xFF1A1C27)

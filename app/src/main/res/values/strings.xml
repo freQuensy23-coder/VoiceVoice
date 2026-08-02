@@ -1,4 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">VoiceVoice</string>
+    <string name="accessibility_service_label">VoiceVoice floating transcription</string>
+    <string name="accessibility_service_description">Shows a floating microphone, reads the current accessibility tree for transcription context, inserts generated text into the focused field, and tracks corrections only after automatic insertion.</string>
+    <string name="recording_channel_name">Voice recording</string>
+    <string name="recording_notification_title">VoiceVoice is recording</string>
+    <string name="recording_notification_text">Tap Stop when you finish speaking.</string>
+    <string name="stop_recording">Stop</string>
+    <string name="overlay_start">Start</string>
+    <string name="overlay_stop">Stop</string>
+    <string name="overlay_loading">Loading…</string>
+    <string name="overlay_ready">Ready</string>
+    <string name="overlay_starting">Starting microphone…</string>
+    <string name="overlay_recording">Recording — tap Stop</string>
+    <string name="overlay_processing">Transcribing…</string>
+    <string name="overlay_translating">Translating…</string>
+    <string name="overlay_copied">Copied to clipboard</string>
+    <string name="overlay_copied_inserted">Copied and inserted</string>
+    <string name="overlay_translation_copied">Translation copied</string>
+    <string name="overlay_translation_inserted">Translation copied and inserted</string>
+    <string name="overlay_correction_saved">Correction saved to history</string>
+    <string name="overlay_microphone_description">VoiceVoice microphone</string>
+    <string name="translate">Translate</string>
+    <string name="translate_last_result">Translate the last VoiceVoice result</string>
+    <string name="error_missing_audio">Recorded audio is missing</string>
+    <string name="error_recording">Recording failed</string>
+    <string name="error_processing">Transcription failed</string>
+    <string name="error_translation">Translation failed</string>
+    <string name="error_microphone_permission">Grant microphone permission in VoiceVoice</string>
+    <string name="error_no_translation_source">No result is available to translate</string>
 </resources>
