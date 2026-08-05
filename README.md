@@ -87,3 +87,7 @@ The credentialed Codex workflow remains restricted to trusted owner-authored pul
 - History is stored locally in SQLite and can be cleared from the app.
 - API keys are encrypted at rest through Android Keystore.
 - Accessibility insertion and correction tracking are scoped to the currently focused editable node.
+
+
+
+
